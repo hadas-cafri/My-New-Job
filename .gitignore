@@ -1,0 +1,16 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Personal data (CV etc.)
+profile/
+*.pdf
+*.docx
+
+# Dependencies / build
+node_modules/
+dist/
+.next/
+__pycache__/
+.venv/
