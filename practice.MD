@@ -23,8 +23,8 @@
 
 ## תצוגה: מחשב וסלולר
 
-- **כל שינוי בדף חייב לעבוד גם במחשב וגם בסלולר.** המכשיר הנייד: **סמסונג (Android)**, Chrome או Samsung Internet.
-- `npm run e2e` מריץ את האתר המובנה ב-Chromium על: Galaxy S9+ (320px), Galaxy S23 (360px), Galaxy S24 Ultra (412px) ומחשב (1280px), מול Airtable מדומה, ובודק:
+- **כל שינוי בדף חייב לעבוד גם במחשב וגם בסלולר.** המכשיר הנייד: **Samsung Galaxy S26 Ultra (Android)**, Chrome או Samsung Internet.
+- `npm run e2e` מריץ את האתר המובנה ב-Chromium על: Galaxy S9+ (320px), Galaxy S23 (360px), Galaxy Ultra (412px, קירוב ל-S26 Ultra) ומחשב (1280px), מול Airtable מדומה, ובודק:
   - אין גלילה אופקית (גם עם טקסט וקישורים ארוכים);
   - אזורי לחיצה בגובה 44px לפחות בסלולר;
   - פריסה: עמודה אחת בסלולר, שתיים במחשב;

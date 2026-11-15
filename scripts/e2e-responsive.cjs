@@ -33,7 +33,7 @@ const VIEWPORTS = [
     mobile: true,
   },
   {
-    name: "galaxy-s24-ultra-412",
+    name: "galaxy-ultra-412",
     options: { viewport: { width: 412, height: 915 }, deviceScaleFactor: 3.5, isMobile: true, hasTouch: true },
     columns: 1,
     mobile: true,
