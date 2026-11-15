@@ -7,7 +7,7 @@ export const DOMAINS = [
   { value: "Biotech", he: "ביוטק", hint: "drug discovery, genomics, life-science tools" },
   { value: "Medtech", he: "מדטק", hint: "medical devices, digital health, clinical decision tools" },
   { value: "Telco", he: "טלקום", hint: "telecommunications, network operators and equipment, 5G, connectivity" },
-  { value: "Fintech", he: "פינטק", hint: "payments, banking and insurance tech, trading, lending, crypto" },
+  { value: "Fintech", he: "פינטק", hint: "financial-technology companies: payments, trading, lending, crypto, insurtech (a traditional bank or insurer is Traditional Org instead)" },
   { value: "Cybersecurity", he: "סייבר", hint: "security products and services" },
   { value: "AI & Data", he: "AI ודאטה", hint: "AI/ML platforms, data infrastructure, analytics, AI-native products" },
   { value: "Enterprise Software", he: "תוכנה ארגונית", hint: "B2B software / SaaS / developer and DevOps tools that fit no other domain" },
@@ -15,10 +15,15 @@ export const DOMAINS = [
   { value: "Mobility & Automotive", he: "תחבורה ורכב", hint: "vehicles, mobility, transportation tech" },
   { value: "Energy & Cleantech", he: "אנרגיה וקלינטק", hint: "energy, utilities, climate and clean technology" },
   { value: "Defense & Gov", he: "ביטחון וממשל", hint: "defense industry, government and public-sector projects" },
-  { value: "Industrial & Logistics", he: "תעשייה ולוגיסטיקה", hint: "traditional industry, manufacturing, shipping, supply chain" },
+  { value: "Industrial & Logistics", he: "תעשייה ולוגיסטיקה", hint: "manufacturing, shipping, supply chain" },
   { value: "Real Estate", he: "נדל״ן", hint: "real estate, property tech, construction" },
   { value: "Media & Gaming", he: "מדיה וגיימינג", hint: "media, content, advertising, games" },
   { value: "Education", he: "חינוך", hint: "education and learning" },
+  {
+    value: "Traditional Org",
+    he: "ארגון מסורתי",
+    hint: "a non-tech organization such as a bank, insurer, large traditional corporation or public body, where the role is a digital/product role inside an organization whose core business is not technology",
+  },
   { value: "Other", he: "אחר", hint: "anything that fits none of the above" },
 ] as const;
 
