@@ -45,7 +45,7 @@ function offlineStore(path: string): Store {
 function printReport(r: RunReport) {
   console.log(`\n${r.dryRun ? "DRY RUN (nothing written)" : "Run finished"}  ${r.startedAt}`);
   for (const s of r.sources) {
-    console.log(`  ${s.error ? "✗" : "✓"} ${s.key.padEnd(30)} fetched ${String(s.fetched).padStart(3)}  usable ${String(s.normalized).padStart(3)}  target roles ${String(s.relevant).padStart(3)}${s.error ? `  ERROR ${s.error}` : ""}`);
+    console.log(`  ${s.error ? "✗" : "✓"} ${s.key.padEnd(30)} fetched ${String(s.fetched).padStart(3)}  usable ${String(s.normalized).padStart(3)}  target roles ${String(s.relevant).padStart(3)}${s.capped ? "  (result cap reached: more jobs exist)" : ""}${s.error ? `  ERROR ${s.error}` : ""}`);
   }
   console.log(`\n  target-role jobs ${r.relevant} → after dedupe ${r.unique}`);
   console.log(`  new ${r.created} | already stored (Last Seen refreshed) ${r.updated} | closed ${r.closed}`);

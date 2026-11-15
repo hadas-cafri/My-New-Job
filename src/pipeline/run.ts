@@ -73,7 +73,16 @@ export type RunOptions = {
   maxMatches?: number;
 };
 
-export type SourceStat = { key: string; source: Source; fetched: number; normalized: number; relevant: number; error: string | null };
+export type SourceStat = {
+  key: string;
+  source: Source;
+  fetched: number;
+  normalized: number;
+  relevant: number;
+  /** The search returned as many results as its cap allows, so more jobs probably exist than were collected. */
+  capped: boolean;
+  error: string | null;
+};
 
 export type RunReport = {
   startedAt: string;
@@ -144,10 +153,12 @@ export async function runPipeline(deps: Deps, opts: RunOptions): Promise<RunRepo
   // 1) collect + normalize + role filter, one source at a time (a failure in one does not stop the others)
   const batch: NormalizedJob[] = [];
   for (const s of sources) {
-    const stat: SourceStat = { key: s.key, source: s.source, fetched: 0, normalized: 0, relevant: 0, error: null };
+    const stat: SourceStat = { key: s.key, source: s.source, fetched: 0, normalized: 0, relevant: 0, capped: false, error: null };
     try {
       const raw = await collect(s);
       stat.fetched = raw.length;
+      const cap = Number(s.input.limit ?? s.input.maxResults);
+      stat.capped = Number.isFinite(cap) && cap > 0 && raw.length >= cap;
       const jobs = normalizeAll(raw, { source: s.source, cities: cfg.cities, favoriteCompanies: cfg.favoriteCompanies, now });
       stat.normalized = jobs.length;
       const relevant = jobs.filter((j) => isTargetRole(j.title, cfg.roles, cfg.blocklist));
@@ -161,12 +172,13 @@ export async function runPipeline(deps: Deps, opts: RunOptions): Promise<RunRepo
   }
   report.relevant = batch.length;
 
-  // A source is healthy when none of its searches failed and it returned something. Only a healthy
-  // source can "lose" jobs: an outage or an empty answer must never close anything.
+  // A source is healthy when none of its searches failed or hit their result cap, and it returned
+  // something. Only a healthy source can "lose" jobs: an outage, an empty answer, or a search cut off
+  // at its cap (so jobs are missing only because they did not fit) must never close anything.
   const healthy = new Set<Source>();
   for (const src of new Set(report.sources.map((x) => x.source))) {
     const stats = report.sources.filter((x) => x.source === src);
-    if (stats.every((x) => !x.error) && stats.some((x) => x.fetched > 0)) healthy.add(src);
+    if (stats.every((x) => !x.error && !x.capped) && stats.some((x) => x.fetched > 0)) healthy.add(src);
   }
 
   // 2) dedupe inside the batch, then against what Airtable already holds

@@ -304,3 +304,41 @@ describe("scoring", () => {
     expect(updated.find((u) => u.id === scoredAlready.recordId)?.fields).toEqual({ "Last Seen": TODAY }); // existing score untouched
   });
 });
+
+describe("a search that hit its result cap", () => {
+  const gone = ex({ recordId: "recGONE000000009", externalId: "LinkedIn:4400000090", lastSeen: "2026-11-01", postedDate: "2026-11-10" });
+  const capped: SourceConfig = { ...LI, input: { limit: 2 } };
+
+  it("never closes jobs: a job can be missing only because it did not fit under the cap (seen in the real run)", async () => {
+    const { store, updated } = setup([gone]);
+    const report = await runPipeline({ sources: [capped], collect: collector({ "linkedin-pm": [li(4400000091), li(4400000092)] }), store }, OPTS);
+    expect(report.sources[0].capped).toBe(true);
+    expect(report.closed).toBe(0);
+    expect(updated.find((u) => u.id === gone.recordId)).toBeUndefined();
+  });
+
+  it("closes again as soon as the results are complete (fewer than the cap)", async () => {
+    const { store, updated } = setup([gone]);
+    const report = await runPipeline({ sources: [capped], collect: collector({ "linkedin-pm": [li(4400000091)] }), store }, OPTS);
+    expect(report.sources[0].capped).toBe(false);
+    expect(report.closed).toBe(1);
+    expect(updated.find((u) => u.id === gone.recordId)?.fields.Status).toBe("Closed");
+  });
+
+  it("one capped search among several blocks closing for that whole source", async () => {
+    const second: SourceConfig = { ...LI, key: "linkedin-architect", input: { limit: 50 } };
+    const { store } = setup([gone]);
+    const report = await runPipeline(
+      { sources: [capped, second], collect: collector({ "linkedin-pm": [li(4400000091), li(4400000092)], "linkedin-architect": [li(4400000093)] }), store },
+      OPTS,
+    );
+    expect(report.closed).toBe(0);
+  });
+
+  it("a source whose searches carry no cap is unaffected", async () => {
+    const { store } = setup([gone]);
+    const report = await runPipeline({ sources: [LI], collect: collector({ "linkedin-pm": [li(4400000091)] }), store }, OPTS);
+    expect(report.sources[0].capped).toBe(false);
+    expect(report.closed).toBe(1);
+  });
+});
