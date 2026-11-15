@@ -6,7 +6,7 @@
  *   npm run pipeline -- --dry-run --limit 8  # cheap trial (8 results per search)
  *   npm run pipeline -- --lookback day       # only jobs posted in the last 24 hours
  *   npm run pipeline -- --only drushim       # only searches whose key contains "drushim"
- *   npm run pipeline -- --scheduled-guard    # used by the workflow: run only at 08:00 / 18:00 Israel time
+ *   npm run pipeline -- --scheduled-guard    # used by the workflow: run only at 11:00 Israel time
  *   npm run pipeline -- --dry-run --offline-config local/offline.json   # settings from a file instead of Airtable
  *
  * Environment: APIFY_TOKEN (required), AIRTABLE_TOKEN (required unless --offline-config),
@@ -76,7 +76,7 @@ async function main(): Promise<number> {
   const now = new Date();
 
   if (values["scheduled-guard"] && !isScheduledHour(now)) {
-    console.log(`Skipping: ${israelHour(now)}:00 Israel time is not a scheduled hour (08:00 / 18:00).`);
+    console.log(`Skipping: ${israelHour(now)}:00 Israel time is not the scheduled hour (11:00).`);
     return 0;
   }
 

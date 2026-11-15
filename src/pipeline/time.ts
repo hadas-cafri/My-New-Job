@@ -11,12 +11,12 @@ export function israelHour(now: Date): number {
   return Number(h) % 24;
 }
 
-/** The scheduled runs are at 08:00 and 18:00 Israel time. */
-export const SCHEDULED_HOURS = [8, 18];
+/** The scheduled run is once a day, at 11:00 Israel time. */
+export const SCHEDULED_HOURS = [11];
 
 /**
  * GitHub's cron runs in UTC, and Israel's offset changes with daylight saving (+2 / +3).
  * The workflow therefore fires at both possible UTC hours and this check lets only the one that
- * lands on 08:00 or 18:00 Israel time do the work.
+ * lands on 11:00 Israel time do the work.
  */
 export const isScheduledHour = (now: Date): boolean => SCHEDULED_HOURS.includes(israelHour(now));

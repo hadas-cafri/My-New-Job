@@ -1,14 +1,18 @@
 name: Job pipeline
 
-# Collects jobs, scores them and updates Airtable, twice a day at 08:00 and 18:00 Israel time.
+# Collects jobs, scores them and updates Airtable, once a day at 11:00 Israel time.
+#
+# THE SCHEDULE IS OFF UNTIL YOU TURN IT ON. The scheduled runs do nothing unless the repository
+# variable PIPELINE_ENABLED is "true" (Settings -> Secrets and variables -> Actions -> Variables).
+# Set it only after the secrets are in place and you have approved the cost. Delete it, or set it to
+# anything else, to stop the daily run. A manual run (Run workflow) always works.
+#
 # GitHub's cron is in UTC and Israel's offset changes with daylight saving (+2 / +3), so the workflow
-# is triggered at both possible UTC hours and the script skips the one that is not 08:00 / 18:00 locally.
+# is triggered at both possible UTC hours and the script skips the one that is not 11:00 locally.
 on:
   schedule:
-    - cron: "0 5 * * *"   # 08:00 Israel in summer
-    - cron: "0 6 * * *"   # 08:00 Israel in winter
-    - cron: "0 15 * * *"  # 18:00 Israel in summer
-    - cron: "0 16 * * *"  # 18:00 Israel in winter
+    - cron: "0 8 * * *"   # 11:00 Israel in summer (UTC+3)
+    - cron: "0 9 * * *"   # 11:00 Israel in winter (UTC+2)
   workflow_dispatch:
     inputs:
       dry_run:
@@ -31,6 +35,8 @@ permissions:
 
 jobs:
   run:
+    # manual runs always; scheduled runs only when the switch is on
+    if: github.event_name == 'workflow_dispatch' || vars.PIPELINE_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:

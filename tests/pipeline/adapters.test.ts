@@ -29,30 +29,31 @@ describe("withRetry", () => {
   });
 });
 
-describe("Israel time and the schedule (08:00 / 18:00 despite daylight saving)", () => {
+describe("Israel time and the schedule (once a day at 11:00 despite daylight saving)", () => {
   const at = (iso: string) => new Date(iso);
 
-  it("winter (UTC+2): 06:00 and 16:00 UTC are the scheduled hours", () => {
-    expect(israelHour(at("2026-01-15T06:00:00Z"))).toBe(8);
-    expect(isScheduledHour(at("2026-01-15T06:00:00Z"))).toBe(true);
-    expect(isScheduledHour(at("2026-01-15T16:00:00Z"))).toBe(true);
-    expect(isScheduledHour(at("2026-01-15T05:00:00Z"))).toBe(false); // 07:00 local: the summer trigger, skipped
-    expect(isScheduledHour(at("2026-01-15T15:00:00Z"))).toBe(false);
+  it("winter (UTC+2): 09:00 UTC is 11:00 Israel time", () => {
+    expect(israelHour(at("2026-01-15T09:00:00Z"))).toBe(11);
+    expect(isScheduledHour(at("2026-01-15T09:00:00Z"))).toBe(true);
+    expect(isScheduledHour(at("2026-01-15T08:00:00Z"))).toBe(false); // 10:00 local: the summer trigger, skipped
   });
 
-  it("summer (UTC+3): 05:00 and 15:00 UTC are the scheduled hours", () => {
-    expect(isScheduledHour(at("2026-07-15T05:00:00Z"))).toBe(true);
-    expect(isScheduledHour(at("2026-07-15T15:00:00Z"))).toBe(true);
-    expect(isScheduledHour(at("2026-07-15T06:00:00Z"))).toBe(false); // 09:00 local: the winter trigger, skipped
-    expect(isScheduledHour(at("2026-07-15T16:00:00Z"))).toBe(false);
+  it("summer (UTC+3): 08:00 UTC is 11:00 Israel time", () => {
+    expect(isScheduledHour(at("2026-07-15T08:00:00Z"))).toBe(true);
+    expect(isScheduledHour(at("2026-07-15T09:00:00Z"))).toBe(false); // 12:00 local: the winter trigger, skipped
   });
 
-  it("exactly one of the two UTC triggers fires per slot, all year", () => {
-    for (const day of ["2026-01-15", "2026-03-20", "2026-07-15", "2026-10-30", "2026-12-31"]) {
-      const morning = [5, 6].filter((h) => isScheduledHour(at(`${day}T0${h}:00:00Z`)));
-      const evening = [15, 16].filter((h) => isScheduledHour(at(`${day}T${h}:00:00Z`)));
-      expect(morning, day).toHaveLength(1);
-      expect(evening, day).toHaveLength(1);
+  it("exactly one of the two UTC triggers fires, all year, including the days the clocks change", () => {
+    for (const day of ["2026-01-15", "2026-03-20", "2026-03-27", "2026-07-15", "2026-10-24", "2026-10-30", "2026-12-31"]) {
+      const firing = [8, 9].filter((h) => isScheduledHour(at(`${day}T0${h}:00:00Z`)));
+      expect(firing, day).toHaveLength(1);
+    }
+  });
+
+  it("no other hour of the day is a scheduled hour", () => {
+    for (let h = 0; h < 24; h++) {
+      const hour = israelHour(at(`2026-07-15T${String(h).padStart(2, "0")}:00:00Z`));
+      expect(isScheduledHour(at(`2026-07-15T${String(h).padStart(2, "0")}:00:00Z`)), `${h}:00 UTC = ${hour}:00 Israel`).toBe(hour === 11);
     }
   });
 
