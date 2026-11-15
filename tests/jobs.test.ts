@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_FILTERS, filterJobs, matchPercent, sortJobs } from "@/lib/jobs";
+import { DEFAULT_FILTERS, filterJobs, isPriority, matchPercent, sortJobs } from "@/lib/jobs";
 import type { Job } from "@/lib/types";
 
 const job = (over: Partial<Job>): Job => ({
@@ -52,6 +52,35 @@ describe("sortJobs", () => {
     const input = [job({ id: "a", match: 0.1 }), job({ id: "b", match: 0.9 })];
     sortJobs(input);
     expect(input[0].id).toBe("a");
+  });
+});
+
+describe("priority is separate from fit", () => {
+  const fit = job({ id: "fit", match: 0.9, domain: "Other" });
+  const wanted = job({ id: "wanted", match: 0.6, domain: "Medtech" });
+  const fav = job({ id: "fav", match: 0.7, favoriteCompany: true });
+
+  it("a favorite company or a preferred domain is a priority job; match score has no part in it", () => {
+    expect(isPriority(fav)).toBe(true);
+    expect(isPriority(wanted)).toBe(true);
+    expect(isPriority(job({ domain: "Biotech" }))).toBe(true);
+    expect(isPriority(fit)).toBe(false);
+    expect(isPriority(job({ match: 1, domain: "Telco" }))).toBe(false); // telco is not preferred (yet)
+    expect(isPriority(job({ match: 0, domain: "Medtech" }))).toBe(true);
+  });
+
+  it("default sort is pure fit: a priority job with a lower score does NOT jump ahead", () => {
+    expect(sortJobs([wanted, fav, fit]).map((j) => j.id)).toEqual(["fit", "fav", "wanted"]);
+  });
+
+  it("'priority' sort puts priority jobs first, each group by fit", () => {
+    expect(sortJobs([fit, wanted, fav], "priority").map((j) => j.id)).toEqual(["fav", "wanted", "fit"]);
+  });
+
+  it("on equal fit, priority jobs come first even in the default sort", () => {
+    const a = job({ id: "a", match: 0.8 });
+    const b = job({ id: "b", match: 0.8, domain: "Biotech" });
+    expect(sortJobs([a, b]).map((j) => j.id)).toEqual(["b", "a"]);
   });
 });
 

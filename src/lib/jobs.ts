@@ -1,4 +1,8 @@
+import { isPreferredDomain } from "./domains";
 import { ACTIVE_STATUSES, type Job, type Status } from "./types";
+
+/** "fit": by match score. "priority": favorite companies and preferred domains first, then by match score. */
+export type SortMode = "fit" | "priority";
 
 export type Filters = {
   query: string;
@@ -6,6 +10,7 @@ export type Filters = {
   status: "active" | "all" | Status;
   minMatch: number; // 0..100
   locationOkOnly: boolean;
+  sort: SortMode;
 };
 
 export const DEFAULT_FILTERS: Filters = {
@@ -14,6 +19,7 @@ export const DEFAULT_FILTERS: Filters = {
   status: "active",
   minMatch: 0,
   locationOkOnly: false,
+  sort: "fit",
 };
 
 export function filterJobs(jobs: Job[], f: Filters): Job[] {
@@ -29,14 +35,22 @@ export function filterJobs(jobs: Job[], f: Filters): Job[] {
   });
 }
 
-/** Highest match first; favorite companies win ties; unscored jobs last. */
-export function sortJobs(jobs: Job[]): Job[] {
+/**
+ * How much the user WANTS the job, separate from how well she FITS it (the match score):
+ * a favorite company or a preferred domain.
+ */
+export const isPriority = (j: Job): boolean => j.favoriteCompany || isPreferredDomain(j.domain);
+
+/**
+ * "fit" (default): highest match first; on equal scores priority jobs come first; unscored last.
+ * "priority": priority jobs first, then highest match. Newest posting breaks remaining ties.
+ */
+export function sortJobs(jobs: Job[], mode: SortMode = "fit"): Job[] {
   return [...jobs].sort((a, b) => {
-    const am = a.match ?? -1;
-    const bm = b.match ?? -1;
-    if (am !== bm) return bm - am;
-    if (a.favoriteCompany !== b.favoriteCompany) return a.favoriteCompany ? -1 : 1;
-    return (b.postedDate ?? "").localeCompare(a.postedDate ?? "");
+    const byPriority = Number(isPriority(b)) - Number(isPriority(a));
+    const byMatch = (b.match ?? -1) - (a.match ?? -1);
+    const first = mode === "priority" ? byPriority || byMatch : byMatch || byPriority;
+    return first || (b.postedDate ?? "").localeCompare(a.postedDate ?? "");
   });
 }
 

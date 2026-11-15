@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AirtableError, createClient } from "@/lib/airtable";
+import { domainLabel, isPreferredDomain } from "@/lib/domains";
 import { DEFAULT_FILTERS, filterJobs, matchPercent, sortJobs, type Filters } from "@/lib/jobs";
 import { STATUSES, STATUS_LABELS, type Job, type Status } from "@/lib/types";
 import { useConnection } from "./ConnectionProvider";
@@ -46,7 +47,7 @@ export function Dashboard() {
   }, [fetchJobs]);
 
   const jobs = load.state === "ready" ? load.jobs : [];
-  const visible = useMemo(() => sortJobs(filterJobs(jobs, filters)), [jobs, filters]);
+  const visible = useMemo(() => sortJobs(filterJobs(jobs, filters), filters.sort), [jobs, filters]);
   const sources = useMemo(
     () => [...new Set(jobs.map((j) => j.source).filter((s): s is string => !!s))],
     [jobs],
@@ -126,6 +127,14 @@ export function Dashboard() {
             <option key={s}>{s}</option>
           ))}
         </select>
+        <select
+          aria-label="מיון"
+          value={filters.sort}
+          onChange={(e) => set("sort", e.target.value as Filters["sort"])}
+        >
+          <option value="fit">מיון: לפי התאמה</option>
+          <option value="priority">מיון: עדיפות קודם</option>
+        </select>
         <label className="inline">
           התאמה מעל {filters.minMatch}%
           <input
@@ -174,7 +183,13 @@ function JobCard({ job, onStatus }: { job: Job; onStatus: (j: Job, s: Status) =>
           <p className="company">
             {job.favoriteCompany && <span title="חברה מועדפת">★ </span>}
             {job.company}
-            {job.domain && job.domain !== "Other" && <span className="pill"> {job.domain}</span>}
+            {job.domain && job.domain !== "Other" && (
+              <span className="pill" title={isPreferredDomain(job.domain) ? "תחום מועדף" : undefined}>
+                {" "}
+                {isPreferredDomain(job.domain) ? "★ " : ""}
+                {domainLabel(job.domain)}
+              </span>
+            )}
           </p>
           <p className="muted">
             {job.location}

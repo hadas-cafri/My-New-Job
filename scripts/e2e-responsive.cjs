@@ -144,6 +144,25 @@ async function runViewport(browser, base, vp) {
   const titles = await page.locator(".card h3").allInnerTexts();
   check(titles[0] === "Senior Product Manager" && titles[1] === "מנהל/ת מוצר בכיר/ה", "cards sorted by match % (91, 74, 62)");
 
+  // Priority (favorite company / preferred domain) is a separate sort. It reorders, never rescores.
+  const scoresBefore = await page.locator(".card .score").allInnerTexts();
+  await page.locator('select[aria-label="מיון"]').selectOption("priority");
+  const byPriority = await page.locator(".card h3").allInnerTexts();
+  check(
+    byPriority.join("|") === "Senior Product Manager|Solution Architect|מנהל/ת מוצר בכיר/ה",
+    "sort by priority: favorite company, then preferred domain (Medtech), then the rest by fit",
+  );
+  const scoresAfter = await page.locator(".card .score").allInnerTexts();
+  check(
+    [...scoresBefore].sort().join() === [...scoresAfter].sort().join(),
+    "sorting by priority leaves every match score unchanged (91%, 74%, 62%)",
+  );
+  check(
+    (await page.locator(".card", { hasText: "Solution Architect" }).locator(".pill", { hasText: "מדטק" }).innerText()).includes("★"),
+    "a preferred domain is shown in Hebrew with a star",
+  );
+  await page.locator('select[aria-label="מיון"]').selectOption("fit");
+
   // Layout: 1 column on phones, 2 on desktop
   const boxes = await page.locator(".card").evaluateAll((els) => els.slice(0, 2).map((e) => e.getBoundingClientRect().toJSON()));
   const sameRow = Math.abs(boxes[0].top - boxes[1].top) < 2;

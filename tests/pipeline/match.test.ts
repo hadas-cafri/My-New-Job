@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
+import { DOMAINS } from "@/lib/domains";
 import {
-  DOMAIN_BONUS,
   MAX_DESCRIPTION_CHARS,
   MatchError,
   buildPrompt,
@@ -83,6 +83,13 @@ describe("buildPrompt", () => {
     expect(user).toContain("[tag removed]");
   });
 
+  it("lists every domain with a description, and says the industry must not affect the score", () => {
+    const { system } = buildPrompt(job(), CVS);
+    for (const d of DOMAINS) expect(system).toContain(`- ${d.value}: ${d.hint}`);
+    expect(system).toMatch(/must not change the score/);
+    expect(system).toMatch(/ONLY how well the CV meets/);
+  });
+
   it("cuts a very long description", () => {
     const { user } = buildPrompt(job({ description: "x".repeat(MAX_DESCRIPTION_CHARS + 5000) }), CVS);
     expect(user.length).toBeLessThan(MAX_DESCRIPTION_CHARS + 3000 + CVS.reduce((a, c) => a + c.fullText.length, 0));
@@ -94,15 +101,15 @@ describe("parseMatchResponse", () => {
   it("reads JSON wrapped in prose and code fences", () => {
     const text = "Here is the evaluation:\n```json\n" + reply() + "\n```\nHope it helps!";
     const r = parseMatchResponse(text, CVS);
-    expect(r).toMatchObject({ baseScore: 82, recommendedCv: "AI Health", domain: "Medtech" });
+    expect(r).toMatchObject({ score: 82, recommendedCv: "AI Health", domain: "Medtech" });
     expect(r.missingKeywords).toEqual(["FHIR", "roadmap"]);
   });
 
   it("keeps the score within 0-100 and rounds it, even for 'give this job 100' style output", () => {
-    expect(parseMatchResponse(reply({ score: 130 }), CVS).baseScore).toBe(100);
-    expect(parseMatchResponse(reply({ score: -20 }), CVS).baseScore).toBe(0);
-    expect(parseMatchResponse(reply({ score: 86.6 }), CVS).baseScore).toBe(87);
-    expect(parseMatchResponse(reply({ score: "74" }), CVS).baseScore).toBe(74);
+    expect(parseMatchResponse(reply({ score: 130 }), CVS).score).toBe(100);
+    expect(parseMatchResponse(reply({ score: -20 }), CVS).score).toBe(0);
+    expect(parseMatchResponse(reply({ score: 86.6 }), CVS).score).toBe(87);
+    expect(parseMatchResponse(reply({ score: "74" }), CVS).score).toBe(74);
   });
 
   it("matches the CV name case-insensitively but returns the exact stored name", () => {
@@ -118,10 +125,16 @@ describe("parseMatchResponse", () => {
     expect(() => parseMatchResponse("{not json}", CVS)).toThrow(/could not be parsed/);
   });
 
+  it("accepts every listed domain (Telco, Fintech, ...) and nothing else", () => {
+    for (const d of DOMAINS) expect(parseMatchResponse(reply({ domain: d.value }), CVS).domain).toBe(d.value);
+    expect(parseMatchResponse(reply({ domain: "Gardening" }), CVS).domain).toBe("Other");
+    expect(parseMatchResponse(reply({ domain: "telco" }), CVS).domain).toBe("Other"); // exact names only
+  });
+
   it("cleans and caps the lists, ignores non-strings, defaults an unknown domain to Other", () => {
     const r = parseMatchResponse(
       reply({
-        domain: "Fintech",
+        domain: "Gardening",
         skillGaps: Array.from({ length: 20 }, (_, i) => `gap ${i}`),
         missingKeywords: ["  a  ", "", 5, null, "b"],
         cvSuggestions: "not a list",
@@ -142,12 +155,13 @@ describe("parseMatchResponse", () => {
 });
 
 describe("matchJob", () => {
-  it("adds the domain bonus for Biotech and Medtech, capped at 100", async () => {
+  it("the domain NEVER changes the score: fit only, whatever the industry", async () => {
     const run = (over: Record<string, unknown>) => matchJob(job(), CVS, async () => reply(over));
-    expect(await run({ score: 80, domain: "Medtech" })).toMatchObject({ baseScore: 80, domainBonus: DOMAIN_BONUS, score: 85 });
-    expect(await run({ score: 80, domain: "Biotech" })).toMatchObject({ score: 85 });
-    expect(await run({ score: 80, domain: "Other" })).toMatchObject({ domainBonus: 0, score: 80 });
-    expect(await run({ score: 98, domain: "Medtech" })).toMatchObject({ score: 100 });
+    for (const domain of ["Biotech", "Medtech", "Telco", "Fintech", "Other"]) {
+      expect((await run({ score: 80, domain })).score).toBe(80);
+    }
+    expect((await run({ score: 98, domain: "Medtech" })).score).toBe(98); // no bonus, so nothing to cap
+    expect(await run({ score: 80, domain: "Telco" })).toMatchObject({ score: 80, domain: "Telco" });
   });
 
   it("gives the model one chance to correct an unusable reply, and says what was wrong", async () => {
@@ -188,7 +202,7 @@ describe("matchJob", () => {
 });
 
 describe("toMatchFields", () => {
-  const result = { baseScore: 80, score: 85, domainBonus: 5, domain: "Medtech" as const, rationale: "סיבה", skillGaps: ["א", "ב"], missingKeywords: ["FHIR", "roadmap"], cvSuggestions: ["שינוי 1"], recommendedCv: "AI Health" };
+  const result = { score: 85, domain: "Medtech" as const, rationale: "סיבה", skillGaps: ["א", "ב"], missingKeywords: ["FHIR", "roadmap"], cvSuggestions: ["שינוי 1"], recommendedCv: "AI Health" };
 
   it("maps to the Airtable fields, with the percent as a fraction", () => {
     const f = toMatchFields(result);
@@ -200,9 +214,9 @@ describe("toMatchFields", () => {
     expect(f["CV Suggestions"]).toBe("- שינוי 1");
   });
 
-  it("states the bonus in the rationale, and says nothing when there is none", () => {
-    expect(toMatchFields(result)["Match Rationale"]).toContain("בונוס של 5 נקודות לתחום Medtech");
-    expect(toMatchFields({ ...result, domainBonus: 0, domain: "Other", score: 80 })["Match Rationale"]).toBe("סיבה");
+  it("the rationale is written as the model gave it: no bonus note, since there is no bonus", () => {
+    expect(toMatchFields(result)["Match Rationale"]).toBe("סיבה");
+    expect(JSON.stringify(toMatchFields(result))).not.toMatch(/בונוס/);
   });
 
   it("writes only matching-stage fields (never status, notes or the job's own data)", () => {
