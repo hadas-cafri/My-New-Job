@@ -30,6 +30,8 @@ describe("text", () => {
 
   it("stripGenderMarkers", () => {
     expect(stripGenderMarkers("מנהל/ת מוצר בכיר/ה")).toBe("מנהל מוצר בכיר");
+    expect(stripGenderMarkers("מנהל.ת מוצר")).toBe("מנהל מוצר");
+    expect(stripGenderMarkers("מנהל/ ת מוצר")).toBe("מנהל מוצר");
     expect(stripGenderMarkers("Product Manager (m/f/d)")).toBe("Product Manager ");
   });
 
@@ -90,6 +92,8 @@ describe("target roles", () => {
     "מנהלת מוצר בכיר/ה",
     "ארכיטקט/ית פתרונות",
     "Product Manager (m/f/d)",
+    'מנהל.ת מוצר בתפ"י', // dot spelling, seen on Drushim
+    "מנהל/ ת מוצר", // space before the ת
   ])("matches: %s", (title) => expect(isTargetRole(title)).toBe(true));
 
   it.each([

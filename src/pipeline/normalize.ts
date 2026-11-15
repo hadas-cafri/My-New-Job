@@ -6,26 +6,33 @@ import type { ApprovedCity, NormalizedJob, RawJob, Source } from "./types";
 export type NormalizeContext = {
   source: Source;
   cities: ApprovedCity[];
-  /** Company names from the Airtable `Companies` table where Favorite is ticked. */
+  /** Company names from the Airtable `Companies` table where Favorite is ticked (add Hebrew spellings too). */
   favoriteCompanies?: string[];
   now?: Date;
 };
 
 /**
- * Field names each Apify actor might use for the same thing.
- * These are best guesses: after the Apify trial run, trim this to the real keys.
+ * Field names each Apify actor uses, checked against real output (trial of 2026-11-15):
+ *  - curious_coder/linkedin-jobs-scraper: companyName, location, postedAt, descriptionText, link (applyUrl is always empty)
+ *  - valig/linkedin-jobs-scraper:         companyName, location, postedDate, description, url (applyUrl empty; `workType` is the INDUSTRY, not remote/hybrid)
+ *  - blackfalcondata/drushim-scraper:     company, location(+English), isRemote/isHybrid, scopes, requirements, portalUrl, applyUrl, isExpired
+ *  - swerve/drushim-scraper:              jobTitle, companyName, addresses[] (several cities), scopes[], requirements, url, postedAt, isExpired
  */
 const KEYS = {
-  title: ["title", "jobTitle", "position", "name", "שם המשרה"],
-  company: ["company", "companyName", "employer", "hiringOrganization", "חברה"],
-  location: ["location", "jobLocation", "city", "formattedLocation", "מיקום", "עיר"],
-  description: ["descriptionText", "description", "descriptionHtml", "jobDescription", "details", "תיאור"],
+  title: ["title", "jobTitle", "position", "name"],
+  company: ["company", "companyName", "employer", "hiringOrganization"],
+  location: ["location", "jobLocation", "formattedLocation", "addresses", "locationEnglish", "city"],
+  description: ["descriptionText", "description", "descriptionMarkdown", "descriptionHtml", "jobDescription", "details"],
+  requirements: ["requirements", "requirementsText"],
   applyUrl: ["applyUrl", "applyLink", "externalApplyLink", "applicationUrl"],
-  jobUrl: ["jobUrl", "url", "link", "postingUrl", "jobLink"],
-  id: ["id", "jobId", "job_id", "trackingId", "postingId"],
-  postedDate: ["postedAt", "postedDate", "publishedAt", "datePosted", "listedAt", "postedTime", "date", "תאריך"],
-  workplace: ["workplaceType", "workType", "workplace", "remoteType", "work_type", "employmentLocation"],
+  jobUrl: ["link", "url", "jobUrl", "portalUrl", "postingUrl", "jobLink"],
+  id: ["id", "jobId", "job_id", "jobCode", "postingId"],
+  postedDate: ["postedAt", "postedDate", "publishedAt", "datePosted", "listedAt", "postedTime", "displayDate", "date"],
+  // NOT "workType": valig uses it for the industry ("Software Development").
+  workplace: ["workplaceType", "remoteType", "work_type", "workplace", "employmentLocation", "scopes"],
   remote: ["remote", "isRemote", "is_remote"],
+  hybrid: ["isHybrid", "is_hybrid"],
+  expired: ["isExpired", "expired"],
 };
 
 /** A readable string from a raw value: strings, numbers, `{name}` / `{text}` objects, arrays. */
@@ -48,15 +55,36 @@ function pick(raw: RawJob, keys: string[]): string {
   return "";
 }
 
+/** The location as a list: a job can name several cities (Drushim `addresses`). */
+function pickLocations(raw: RawJob): string[] {
+  for (const k of KEYS.location) {
+    const v = raw[k];
+    const list = (Array.isArray(v) ? v : [v]).map(asText).filter(Boolean);
+    if (list.length) return list;
+  }
+  return [];
+}
+
+const flag = (raw: RawJob, keys: string[]) =>
+  keys.some((k) => raw[k] === true || (typeof raw[k] === "string" && (raw[k] as string).toLowerCase() === "true"));
+
 const TRACKING_PARAMS = /^(utm_.*|trk|trackingid|refid|ref|ebp|lipi|midtoken|midsig|otptoken|recommendedflavor|original_referer|src|source)$/i;
 
-/** Removes tracking parameters so the same job always has the same link. */
+/**
+ * Removes tracking parameters so the same job always has the same link.
+ * LinkedIn job pages are fully identified by their path, so all their parameters
+ * (position, pageNum, refId, trackingId, ...) are dropped.
+ */
 export function cleanUrl(url: string): string | null {
   try {
     const u = new URL(url.trim());
     if (u.protocol !== "http:" && u.protocol !== "https:") return null;
-    for (const key of [...u.searchParams.keys()]) {
-      if (TRACKING_PARAMS.test(key)) u.searchParams.delete(key);
+    if (/(^|\.)linkedin\.com$/.test(u.hostname) && u.pathname.startsWith("/jobs/view")) {
+      u.search = "";
+    } else {
+      for (const key of [...u.searchParams.keys()]) {
+        if (TRACKING_PARAMS.test(key)) u.searchParams.delete(key);
+      }
     }
     u.hash = "";
     return u.toString();
@@ -65,14 +93,18 @@ export function cleanUrl(url: string): string | null {
   }
 }
 
-/** Job ID taken from the page URL when the actor does not return one. */
+/** Job ID taken from the page URL (stable across runs and across actors). */
 export function idFromUrl(url: string): string | null {
   return (
     url.match(/linkedin\.com\/jobs\/view\/(?:[^/?#]*-)?(\d{6,})/)?.[1] ??
     url.match(/drushim\.co\.il\/job\/(\d+)/)?.[1] ??
+    url.match(/drushim\.co\.il\/sendcv\.aspx\?jobcode=(\d+)/i)?.[1] ??
     null
   );
 }
+
+/** "drushim-38796844" → "38796844" so actors that prefix their IDs still agree. */
+const cleanId = (id: string) => id.match(/^[A-Za-z]+-(\d+)$/)?.[1] ?? id;
 
 const LEGAL_SUFFIX = /\b(ltd|limited|inc|incorporated|llc|corp|corporation|co|gmbh|plc)\b|בעמ/g;
 
@@ -99,31 +131,43 @@ export function detectLanguage(text: string): "Hebrew" | "English" | null {
 
 /**
  * One raw actor item → the common shape. Returns null when the item has no usable title
- * (nothing to match or show). Never throws on odd input.
+ * (nothing to match or show) or the source marks it as expired. Never throws on odd input.
  */
 export function normalizeJob(raw: RawJob, ctx: NormalizeContext): NormalizedJob | null {
+  if (flag(raw, KEYS.expired)) return null;
   const title = cleanText(pick(raw, KEYS.title));
   if (!title) return null;
 
-  const company = cleanText(pick(raw, KEYS.company));
-  const location = cleanText(pick(raw, KEYS.location));
-  const description = cleanText(pick(raw, KEYS.description));
+  // "- חסוי -" (confidential) → "חסוי"
+  const company = cleanText(pick(raw, KEYS.company)).replace(/^[-–\s]+|[-–\s]+$/g, "");
+  const locations = pickLocations(raw).map(cleanText);
+  const location = locations.join(" / ");
+
+  let description = cleanText(pick(raw, KEYS.description));
+  const requirements = cleanText(pick(raw, KEYS.requirements));
+  if (requirements && !description.includes(requirements)) {
+    description = `${description}\n\nRequirements:\n${requirements}`.trim();
+  }
 
   const directUrl = cleanUrl(pick(raw, KEYS.applyUrl));
   const pageUrl = cleanUrl(pick(raw, KEYS.jobUrl));
   const applyUrl = directUrl ?? pageUrl;
 
-  const remoteRaw = KEYS.remote.map((k) => raw[k]).find((v) => v !== undefined);
   const officeRequirement = detectOfficeRequirement({
-    structured: pick(raw, KEYS.workplace),
-    remoteFlag: remoteRaw === true || remoteRaw === "true" ? true : undefined,
+    structured: `${pick(raw, KEYS.workplace)}${flag(raw, KEYS.hybrid) ? " hybrid" : ""}`.trim(),
+    remoteFlag: flag(raw, KEYS.remote) ? true : undefined,
     title,
     location,
     description,
   });
 
-  const matched = matchCity(location, ctx.cities);
-  const sourceJobId = pick(raw, KEYS.id) || (pageUrl && idFromUrl(pageUrl)) || (directUrl && idFromUrl(directUrl)) || null;
+  // A job may list several cities; it fits when ANY of them is an approved city.
+  const places = locations.length ? locations : [""];
+  const matched = places.map((p) => matchCity(p, ctx.cities)).find((c) => c !== null) ?? null;
+  const locationOk = places.some((p) => isLocationOk(officeRequirement, p, ctx.cities));
+
+  const sourceJobId =
+    (pageUrl && idFromUrl(pageUrl)) || (directUrl && idFromUrl(directUrl)) || cleanId(pick(raw, KEYS.id)) || null;
   const externalId = `${ctx.source}:${
     sourceJobId ?? `h${shortHash([foldCompany(company), foldForMatch(title), foldForMatch(location)].join("|"))}`
   }`;
@@ -137,9 +181,9 @@ export function normalizeJob(raw: RawJob, ctx: NormalizeContext): NormalizedJob 
     favoriteCompany: isFavoriteCompany(company, ctx.favoriteCompanies ?? []),
     location,
     city: matched ? matched.city : null,
-    country: detectCountry(location),
+    country: detectCountry(places[0]),
     officeRequirement,
-    locationOk: isLocationOk(officeRequirement, location, ctx.cities),
+    locationOk,
     description,
     applyUrl,
     postedDate: parsePostedDate(pick(raw, KEYS.postedDate), ctx.now),
@@ -148,7 +192,7 @@ export function normalizeJob(raw: RawJob, ctx: NormalizeContext): NormalizedJob 
   };
 }
 
-/** Normalizes a whole actor result, silently dropping items without a title. */
+/** Normalizes a whole actor result, silently dropping unusable and expired items. */
 export function normalizeAll(items: RawJob[], ctx: NormalizeContext): NormalizedJob[] {
   return items.flatMap((raw) => normalizeJob(raw, ctx) ?? []);
 }

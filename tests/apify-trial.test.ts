@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 // @ts-expect-error plain .mjs script, no types
-import { TRIALS, coverage, describeInputSchema, pick, pricePerResult } from "../scripts/apify-trial.mjs";
+import { TRIALS, coverage, describeInputSchema, pick, pricePerResult, withRetry } from "../scripts/apify-trial.mjs";
 
 describe("apify trial helpers", () => {
   it("pick returns the first non-empty candidate key", () => {
@@ -44,6 +44,40 @@ describe("apify trial helpers", () => {
     expect(lines[1]).toBe("- n: integer, default 5");
     expect(lines[2]).toBe('- s: string, one of ["a","b"]');
     expect(describeInputSchema(undefined)).toEqual(["(this actor publishes no input schema)"]);
+  });
+
+  describe("withRetry (transient 502s seen in the real trial)", () => {
+    const transient = () => Object.assign(new Error("502 upstream request failed"), { transient: true });
+    const noWait = { sleep: async () => {} };
+
+    it("retries transient errors and then succeeds", async () => {
+      let calls = 0;
+      const result = await withRetry(async () => {
+        if (++calls < 3) throw transient();
+        return "ok";
+      }, noWait);
+      expect(result).toBe("ok");
+      expect(calls).toBe(3);
+    });
+
+    it("gives up after the retry limit and surfaces the error", async () => {
+      let calls = 0;
+      await expect(withRetry(async () => { calls++; throw transient(); }, { ...noWait, retries: 2 })).rejects.toThrow("502");
+      expect(calls).toBe(3); // first try + 2 retries
+    });
+
+    it("does NOT retry real errors (bad token, bad input): that would just repeat a paid mistake", async () => {
+      let calls = 0;
+      await expect(withRetry(async () => { calls++; throw new Error("401 unauthorized"); }, noWait)).rejects.toThrow("401");
+      expect(calls).toBe(1);
+    });
+
+    it("waits longer between attempts", async () => {
+      const waits: number[] = [];
+      let calls = 0;
+      await withRetry(async () => { if (++calls < 3) throw transient(); }, { sleep: async (ms: number) => void waits.push(ms), delayMs: 2000 });
+      expect(waits).toEqual([2000, 4000]);
+    });
   });
 
   it("every trial limits its results (cost control)", () => {

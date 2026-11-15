@@ -44,10 +44,10 @@ export function containsPhrase(text: string, phrase: string): boolean {
   return phrase !== "" && ` ${text} `.includes(` ${phrase} `);
 }
 
-/** "מנהל/ת מוצר בכיר/ה" → "מנהל מוצר בכיר"; "(m/f/d)" style tags are removed too. */
+/** "מנהל/ת", "מנהל.ת", "מנהל/ ת" → "מנהל"; "(m/f/d)" style tags are removed too. */
 export function stripGenderMarkers(input: string): string {
   return input
-    .replace(/[/\\]\s*(ית|ת|ה)(?![\p{L}])/gu, "")
+    .replace(/[/\\.]\s*(ית|ת|ה)(?![\p{L}])/gu, "")
     .replace(/\(\s*(ית|ת|ה)\s*\)/gu, "")
     .replace(/\(\s*[mfdxw](\s*[/|]\s*[mfdxw])+\s*\)/gi, "");
 }

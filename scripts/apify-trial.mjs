@@ -81,13 +81,43 @@ export function coverage(items) {
   return out;
 }
 
+/**
+ * Retries `fn` when it throws an error marked `transient` (502/503/504/429 or a network failure),
+ * waiting 2s, 4s, ... between attempts. Seen in the 2026-11-15 trial: a different actor got a
+ * "502 upstream request failed" on each run, and it worked a minute later.
+ */
+export async function withRetry(fn, { retries = 2, delayMs = 2000, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) } = {}) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn();
+    } catch (e) {
+      if (!e?.transient || attempt >= retries) throw e;
+      await sleep(delayMs * 2 ** attempt);
+    }
+  }
+}
+
+const TRANSIENT_STATUS = new Set([429, 500, 502, 503, 504]);
+
 async function api(path, init = {}) {
-  const res = await fetch(`${API}${path}`, {
-    ...init,
-    headers: { Authorization: `Bearer ${TOKEN}`, "Content-Type": "application/json", ...init.headers },
+  return withRetry(async () => {
+    let res;
+    try {
+      res = await fetch(`${API}${path}`, {
+        ...init,
+        headers: { Authorization: `Bearer ${TOKEN}`, "Content-Type": "application/json", ...init.headers },
+      });
+    } catch (e) {
+      throw Object.assign(new Error(`${init.method ?? "GET"} ${path} -> network error: ${e.message}`), { transient: true });
+    }
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw Object.assign(new Error(`${init.method ?? "GET"} ${path} -> ${res.status} ${body}`.slice(0, 300)), {
+        transient: TRANSIENT_STATUS.has(res.status),
+      });
+    }
+    return res.json();
   });
-  if (!res.ok) throw new Error(`${init.method ?? "GET"} ${path} -> ${res.status} ${await res.text().catch(() => "")}`.slice(0, 300));
-  return res.json();
 }
 
 const actorPath = (actor) => encodeURIComponent(actor.replace("/", "~"));
@@ -149,6 +179,7 @@ async function runTrial(t) {
     seconds: Math.round((Date.now() - started) / 1000),
     costUsd: current.usageTotalUsd ?? null,
     items: items.length,
+    rawItems: items,
     coverage: coverage(items),
     sample: items.slice(0, 3).map((it) => ({
       title: pick(it, WANTED.title),
@@ -175,11 +206,15 @@ async function main() {
     return;
   }
 
+  await mkdir("trial-results", { recursive: true });
   const results = [];
   for (const t of trials) {
     process.stdout.write(`Running ${t.actor} ... `);
     try {
       const r = await runTrial(t);
+      // Raw items are kept (git-ignored) so the normalizer can be checked against real output.
+      await writeFile(`trial-results/${t.key}-items.json`, JSON.stringify(r.rawItems, null, 2));
+      delete r.rawItems;
       console.log(`${r.items} items, $${r.costUsd ?? "?"}, ${r.seconds}s`);
       results.push(r);
     } catch (e) {
@@ -188,8 +223,7 @@ async function main() {
     }
   }
 
-  await mkdir("trial-results", { recursive: true });
-  const file = `trial-results/apify-${new Date().toISOString().slice(0, 10)}.json`;
+  const file = `trial-results/apify-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.json`;
   await writeFile(file, JSON.stringify(results, null, 2));
   console.log(`\nSaved ${file}`);
   console.table(
