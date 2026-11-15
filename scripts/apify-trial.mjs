@@ -19,33 +19,38 @@ const TOKEN = process.env.APIFY_TOKEN;
 const API = "https://api.apify.com/v2";
 const LIMIT = 15; // jobs per actor: keeps the trial to a few cents
 
-const LINKEDIN_URL =
-  "https://www.linkedin.com/jobs/search/?keywords=Senior%20Product%20Manager&location=Israel&f_TPR=r604800";
-
+// Inputs follow each actor's real input schema (read with `--schema` on 2026-11-15).
 export const TRIALS = [
   {
     key: "linkedin-curious",
     source: "LinkedIn",
     actor: "curious_coder/linkedin-jobs-scraper",
-    input: { urls: [LINKEDIN_URL], count: LIMIT },
+    input: {
+      keywords: "Senior Product Manager",
+      location: "Israel",
+      datePosted: "pastWeek",
+      limitPerSource: LIMIT,
+      scrapeCompany: false, // extra requests per job: not needed for this trial
+    },
   },
   {
     key: "linkedin-valig",
     source: "LinkedIn",
     actor: "valig/linkedin-jobs-scraper",
-    input: { searchUrl: LINKEDIN_URL, maxItems: LIMIT },
+    input: { keywords: "Senior Product Manager", location: "Israel", datePosted: "r604800", limit: LIMIT },
   },
   {
     key: "drushim-blackfalcon",
     source: "Drushim",
     actor: "blackfalcondata/drushim-scraper",
-    input: { searchQuery: "Product Manager", maxItems: LIMIT },
+    input: { query: "Product Manager", maxResults: LIMIT, includeDetails: true },
   },
   {
     key: "drushim-swerve",
     source: "Drushim",
     actor: "swerve/drushim-scraper",
-    input: { query: "Product Manager", maxItems: LIMIT },
+    // Residential Israeli proxy is recommended by the actor but needs a paid plan: try without first.
+    input: { searchTerm: "product manager", maxItems: LIMIT },
   },
 ];
 
@@ -87,14 +92,34 @@ async function api(path, init = {}) {
 
 const actorPath = (actor) => encodeURIComponent(actor.replace("/", "~"));
 
+/** Price per result in USD (free-plan tier when tiered), or null. */
+export function pricePerResult(pricingInfo) {
+  const ev = pricingInfo?.pricingPerEvent?.actorChargeEvents?.["apify-default-dataset-item"];
+  return ev?.eventPriceUsd ?? ev?.eventTieredPricingUsd?.FREE?.tieredEventPriceUsd ?? null;
+}
+
+/** One readable line per input field of an actor's real input schema. */
+export function describeInputSchema(input) {
+  if (!input?.properties) return ["(this actor publishes no input schema)"];
+  const required = new Set(input.required ?? []);
+  return Object.entries(input.properties).map(([name, p]) => {
+    const parts = [`- ${name}${required.has(name) ? " (required)" : ""}: ${p.type ?? "?"}`];
+    if (p.enum) parts.push(`one of ${JSON.stringify(p.enum)}`);
+    if (p.default !== undefined) parts.push(`default ${JSON.stringify(p.default)}`);
+    const text = String(p.description ?? p.title ?? "").replace(/\s+/g, " ").slice(0, 160);
+    return text ? `${parts.join(", ")} | ${text}` : parts.join(", ");
+  });
+}
+
 async function printSchema(t) {
   const { data } = await api(`/acts/${actorPath(t.actor)}`);
-  const v = data.defaultRunOptions ? data : data;
-  const latest = v.taggedBuilds?.latest ?? null;
   console.log(`\n=== ${t.actor} ===`);
-  console.log(`users/month: ${data.stats?.totalUsers30Days ?? "?"}, pricing: ${JSON.stringify(data.pricingInfos?.at(-1) ?? data.pricingModel ?? "?")}`);
-  console.log(`latest build: ${latest?.buildId ?? "?"}`);
-  console.log(`input schema: ${JSON.stringify(data.exampleRunInput?.body ?? "(see actor page)")}`);
+  const price = pricePerResult(data.pricingInfos?.at(-1));
+  console.log(`users/month: ${data.stats?.totalUsers30Days ?? "?"}, price/result (free plan): ${price ?? "?"} USD`);
+  const buildId = data.taggedBuilds?.latest?.buildId;
+  if (!buildId) return console.log("(no latest build)");
+  const { data: build } = await api(`/actor-builds/${buildId}`);
+  describeInputSchema(build.actorDefinition?.input).forEach((line) => console.log(line));
 }
 
 async function runTrial(t) {
