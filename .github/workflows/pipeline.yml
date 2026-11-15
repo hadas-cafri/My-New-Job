@@ -1,18 +1,11 @@
 name: Job pipeline
 
-# Collects jobs, scores them and updates Airtable, once a day at 11:00 Israel time.
+# Collects jobs, scores them and updates Airtable.
 #
-# THE SCHEDULE IS OFF UNTIL YOU TURN IT ON. The scheduled runs do nothing unless the repository
-# variable PIPELINE_ENABLED is "true" (Settings -> Secrets and variables -> Actions -> Variables).
-# Set it only after the secrets are in place and you have approved the cost. Delete it, or set it to
-# anything else, to stop the daily run. A manual run (Run workflow) always works.
-#
-# GitHub's cron is in UTC and Israel's offset changes with daylight saving (+2 / +3), so the workflow
-# is triggered at both possible UTC hours and the script skips the one that is not 11:00 locally.
+# There is NO automatic schedule. Every day around 11:00 Israel time Claude asks the owner whether to
+# run, and only after an explicit "yes" it starts this workflow (Run workflow). It can also be started
+# by hand: Actions -> Job pipeline -> Run workflow.
 on:
-  schedule:
-    - cron: "0 8 * * *"   # 11:00 Israel in summer (UTC+3)
-    - cron: "0 9 * * *"   # 11:00 Israel in winter (UTC+2)
   workflow_dispatch:
     inputs:
       dry_run:
@@ -20,7 +13,7 @@ on:
         type: boolean
         default: false
       lookback:
-        description: "How far back to search (week for the first run / backfill, day for a light run)"
+        description: "How far back to search (week is the normal run and is needed to close missing jobs; day for a light run)"
         type: choice
         options: [week, day]
         default: week
@@ -35,8 +28,6 @@ permissions:
 
 jobs:
   run:
-    # manual runs always; scheduled runs only when the switch is on
-    if: github.event_name == 'workflow_dispatch' || vars.PIPELINE_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -46,17 +37,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-
-      - name: Run (scheduled)
-        if: github.event_name == 'schedule'
-        run: npm run pipeline -- --scheduled-guard
-        env:
-          APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
-          AIRTABLE_TOKEN: ${{ secrets.AIRTABLE_TOKEN }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-
-      - name: Run (manual)
-        if: github.event_name == 'workflow_dispatch'
+      - name: Run the pipeline
         run: npm run pipeline -- --lookback "${{ inputs.lookback }}" ${{ inputs.dry_run && '--dry-run' || '' }}
         env:
           APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}

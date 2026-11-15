@@ -6,7 +6,6 @@
  *   npm run pipeline -- --dry-run --limit 8  # cheap trial (8 results per search)
  *   npm run pipeline -- --lookback day       # only jobs posted in the last 24 hours
  *   npm run pipeline -- --only drushim       # only searches whose key contains "drushim"
- *   npm run pipeline -- --scheduled-guard    # used by the workflow: run only at 11:00 Israel time
  *   npm run pipeline -- --dry-run --offline-config local/offline.json   # settings from a file instead of Airtable
  *
  * Environment: APIFY_TOKEN (required), AIRTABLE_TOKEN (required unless --offline-config),
@@ -20,7 +19,7 @@ import { createAnthropicComplete } from "../src/pipeline/anthropic";
 import { createApifyCollector } from "../src/pipeline/apify";
 import { runPipeline, type PipelineConfig, type RunReport, type Store } from "../src/pipeline/run";
 import { buildSources, lookbackDays, type Lookback } from "../src/pipeline/sources";
-import { isScheduledHour, israelHour, israelToday } from "../src/pipeline/time";
+import { israelToday } from "../src/pipeline/time";
 
 type OfflineConfig = Partial<PipelineConfig> & { existing?: Awaited<ReturnType<Store["loadExistingJobs"]>> };
 
@@ -69,16 +68,10 @@ async function main(): Promise<number> {
       limit: { type: "string" },
       only: { type: "string" },
       "offline-config": { type: "string" },
-      "scheduled-guard": { type: "boolean" },
       "max-matches": { type: "string" },
     },
   });
   const now = new Date();
-
-  if (values["scheduled-guard"] && !isScheduledHour(now)) {
-    console.log(`Skipping: ${israelHour(now)}:00 Israel time is not the scheduled hour (11:00).`);
-    return 0;
-  }
 
   const lookback = (values.lookback ?? "week") as Lookback;
   if (lookback !== "week" && lookback !== "day") {

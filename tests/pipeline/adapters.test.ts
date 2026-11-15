@@ -4,7 +4,7 @@ import { createApifyCollector } from "@/pipeline/apify";
 import { createAirtableStore, TABLES } from "@/pipeline/airtable-store";
 import { TransientError, withRetry } from "@/pipeline/retry";
 import { buildSources, lookbackDays } from "@/pipeline/sources";
-import { isScheduledHour, israelHour, israelToday } from "@/pipeline/time";
+import { israelToday } from "@/pipeline/time";
 import type { RunLog } from "@/pipeline/run";
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
@@ -29,37 +29,11 @@ describe("withRetry", () => {
   });
 });
 
-describe("Israel time and the schedule (once a day at 11:00 despite daylight saving)", () => {
-  const at = (iso: string) => new Date(iso);
-
-  it("winter (UTC+2): 09:00 UTC is 11:00 Israel time", () => {
-    expect(israelHour(at("2026-01-15T09:00:00Z"))).toBe(11);
-    expect(isScheduledHour(at("2026-01-15T09:00:00Z"))).toBe(true);
-    expect(isScheduledHour(at("2026-01-15T08:00:00Z"))).toBe(false); // 10:00 local: the summer trigger, skipped
-  });
-
-  it("summer (UTC+3): 08:00 UTC is 11:00 Israel time", () => {
-    expect(isScheduledHour(at("2026-07-15T08:00:00Z"))).toBe(true);
-    expect(isScheduledHour(at("2026-07-15T09:00:00Z"))).toBe(false); // 12:00 local: the winter trigger, skipped
-  });
-
-  it("exactly one of the two UTC triggers fires, all year, including the days the clocks change", () => {
-    for (const day of ["2026-01-15", "2026-03-20", "2026-03-27", "2026-07-15", "2026-10-24", "2026-10-30", "2026-12-31"]) {
-      const firing = [8, 9].filter((h) => isScheduledHour(at(`${day}T0${h}:00:00Z`)));
-      expect(firing, day).toHaveLength(1);
-    }
-  });
-
-  it("no other hour of the day is a scheduled hour", () => {
-    for (let h = 0; h < 24; h++) {
-      const hour = israelHour(at(`2026-07-15T${String(h).padStart(2, "0")}:00:00Z`));
-      expect(isScheduledHour(at(`2026-07-15T${String(h).padStart(2, "0")}:00:00Z`)), `${h}:00 UTC = ${hour}:00 Israel`).toBe(hour === 11);
-    }
-  });
-
-  it("the Israeli date can be a day ahead of UTC", () => {
-    expect(israelToday(at("2026-11-15T22:30:00Z"))).toBe("2026-11-16");
-    expect(israelToday(at("2026-11-15T10:00:00Z"))).toBe("2026-11-15");
+describe("Israel date", () => {
+  it("can be a day ahead of UTC (Israel is UTC+2 / +3)", () => {
+    expect(israelToday(new Date("2026-11-15T22:30:00Z"))).toBe("2026-11-16");
+    expect(israelToday(new Date("2026-11-15T10:00:00Z"))).toBe("2026-11-15");
+    expect(israelToday(new Date("2026-07-15T21:30:00Z"))).toBe("2026-07-16"); // summer: UTC+3
   });
 });
 
