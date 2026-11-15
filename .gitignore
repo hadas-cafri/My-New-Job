@@ -19,3 +19,5 @@ __pycache__/
 trial-results/
 next-env.d.ts
 *.tsbuildinfo
+out/
+e2e-screenshots/

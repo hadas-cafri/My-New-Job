@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { AirtableError, createClient, mapRecord, patchToFields } from "@/lib/airtable";
-import { parsePatch } from "@/lib/patch";
 
 const ok = (body: unknown) => new Response(JSON.stringify(body), { status: 200 });
+const CONN = { token: "patTOKEN", baseId: "appTESTTESTTEST01", tableId: "tblTESTTESTTEST01" };
 
 describe("mapRecord", () => {
   it("maps Airtable fields and keeps match as a fraction", () => {
@@ -41,33 +41,39 @@ describe("mapRecord", () => {
 });
 
 describe("client", () => {
-  it("sends the bearer token and follows pagination", async () => {
+  it("uses the user's base/table IDs and bearer token, and follows pagination", async () => {
     const fetchImpl = vi
       .fn()
       .mockResolvedValueOnce(ok({ records: [{ id: "rec1", fields: { Title: "A" } }], offset: "next1" }))
       .mockResolvedValueOnce(ok({ records: [{ id: "rec2", fields: { Title: "B" } }] }));
-    const client = createClient("patTOKEN", { baseId: "appTEST", fetchImpl: fetchImpl as never });
+    const client = createClient(CONN, { fetchImpl: fetchImpl as never });
 
     const jobs = await client.listJobs();
 
     expect(jobs.map((j) => j.title)).toEqual(["A", "B"]);
     expect(fetchImpl).toHaveBeenCalledTimes(2);
     const [url1, init1] = fetchImpl.mock.calls[0];
-    expect(url1).toContain("/appTEST/");
+    expect(url1).toBe(`https://api.airtable.com/v0/${CONN.baseId}/${CONN.tableId}`);
     expect((init1.headers as Record<string, string>).Authorization).toBe("Bearer patTOKEN");
     expect(fetchImpl.mock.calls[1][0]).toContain("offset=next1");
   });
 
-  it("throws AirtableError with the status on failure", async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(new Response("{}", { status: 401 }));
-    const client = createClient("bad", { fetchImpl: fetchImpl as never });
-    await expect(client.ping()).rejects.toMatchObject({ status: 401 });
+  it("throws AirtableError carrying the HTTP status", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response("{}", { status: 403 }));
+    const client = createClient(CONN, { fetchImpl: fetchImpl as never });
+    await expect(client.ping()).rejects.toMatchObject({ status: 403 });
     await expect(client.ping()).rejects.toBeInstanceOf(AirtableError);
+  });
+
+  it("reports network failures as status 0", async () => {
+    const fetchImpl = vi.fn().mockRejectedValue(new TypeError("Failed to fetch"));
+    const client = createClient(CONN, { fetchImpl: fetchImpl as never });
+    await expect(client.listJobs()).rejects.toMatchObject({ status: 0 });
   });
 
   it("updateJob PATCHes only the given fields", async () => {
     const fetchImpl = vi.fn().mockResolvedValue(ok({ id: "rec1", fields: { Status: "Applied" } }));
-    const client = createClient("pat", { fetchImpl: fetchImpl as never });
+    const client = createClient(CONN, { fetchImpl: fetchImpl as never });
 
     const job = await client.updateJob("rec1", { status: "Applied" });
 
@@ -78,25 +84,18 @@ describe("client", () => {
   });
 });
 
-describe("patch whitelist", () => {
-  it("accepts status / notes / appliedDate", () => {
-    expect(parsePatch({ status: "Saved", notes: "x", appliedDate: "2026-11-15" })).toEqual({
-      status: "Saved",
-      notes: "x",
-      appliedDate: "2026-11-15",
+describe("write-back is limited to tracking fields", () => {
+  it("maps status / notes / appliedDate", () => {
+    expect(patchToFields({ status: "Saved", notes: "x", appliedDate: "2026-11-15" })).toEqual({
+      Status: "Saved",
+      Notes: "x",
+      "Applied Date": "2026-11-15",
     });
-    expect(parsePatch({ appliedDate: null })).toEqual({ appliedDate: null });
+    expect(patchToFields({ appliedDate: null })).toEqual({ "Applied Date": null });
   });
 
-  it("rejects unknown statuses, bad dates and empty patches", () => {
-    expect(parsePatch({ status: "Hired" })).toBeNull();
-    expect(parsePatch({ appliedDate: "15/11/2026" })).toBeNull();
-    expect(parsePatch({})).toBeNull();
-    expect(parsePatch(null)).toBeNull();
-  });
-
-  it("ignores fields outside the whitelist", () => {
-    expect(parsePatch({ status: "Saved", "Match %": 1, Title: "hack" })).toEqual({ status: "Saved" });
-    expect(patchToFields({ status: "Saved" })).toEqual({ Status: "Saved" });
+  it("cannot be coerced into writing other fields", () => {
+    const sneaky = { status: "Saved", "Match %": 1, Title: "hack" } as never;
+    expect(patchToFields(sneaky)).toEqual({ Status: "Saved" });
   });
 });

@@ -1,9 +1,9 @@
+import type { Connection } from "./connection";
 import { STATUSES, type Job, type JobPatch, type Status } from "./types";
 
-const DEFAULT_API = "https://api.airtable.com/v0";
-export const DEFAULT_BASE_ID = "appAnHmtOjUfgQAcA";
-export const JOBS_TABLE_ID = "tblyQ1DaQW5A7wJbA";
+const API = "https://api.airtable.com/v0";
 
+/** `status` is the HTTP status, or 0 for a network failure (offline, blocked). */
 export class AirtableError extends Error {
   constructor(
     public status: number,
@@ -49,6 +49,7 @@ export function mapRecord(rec: AirtableRecord): Job {
   };
 }
 
+/** The dashboard may write back only these three fields (spec §4). */
 export function patchToFields(patch: JobPatch): Record<string, unknown> {
   const fields: Record<string, unknown> = {};
   if (patch.status !== undefined) fields["Status"] = patch.status;
@@ -57,34 +58,31 @@ export function patchToFields(patch: JobPatch): Record<string, unknown> {
   return fields;
 }
 
-export function createClient(
-  token: string,
-  opts: { baseId?: string; fetchImpl?: typeof fetch } = {},
-) {
-  const baseId = opts.baseId ?? process.env.AIRTABLE_BASE_ID ?? DEFAULT_BASE_ID;
-  const doFetch = opts.fetchImpl ?? fetch;
-  // AIRTABLE_API_URL is only for local end-to-end tests against a fake server.
-  const api = process.env.AIRTABLE_API_URL ?? DEFAULT_API;
-  const url = (query = "") => `${api}/${baseId}/${JOBS_TABLE_ID}${query}`;
+/** Talks to Airtable directly from the browser using the token the user entered. */
+export function createClient(conn: Connection, opts: { fetchImpl?: typeof fetch } = {}) {
+  const doFetch = opts.fetchImpl ?? ((...a: Parameters<typeof fetch>) => fetch(...a));
+  const url = (query = "") => `${API}/${conn.baseId}/${conn.tableId}${query}`;
 
   async function call(input: string, init: RequestInit = {}) {
-    const res = await doFetch(input, {
-      ...init,
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-        ...init.headers,
-      },
-      cache: "no-store",
-    });
-    if (!res.ok) {
-      throw new AirtableError(res.status, `Airtable responded ${res.status}`);
+    let res: Response;
+    try {
+      res = await doFetch(input, {
+        ...init,
+        headers: {
+          Authorization: `Bearer ${conn.token}`,
+          "Content-Type": "application/json",
+          ...init.headers,
+        },
+      });
+    } catch {
+      throw new AirtableError(0, "Network error");
     }
+    if (!res.ok) throw new AirtableError(res.status, `Airtable responded ${res.status}`);
     return res.json() as Promise<{ records?: AirtableRecord[]; offset?: string } & AirtableRecord>;
   }
 
   return {
-    /** Cheap connection check used when a token is entered in settings. */
+    /** Cheap connection check used by the "connect" button. */
     async ping(): Promise<void> {
       await call(url("?maxRecords=1&fields%5B%5D=Title"));
     },
