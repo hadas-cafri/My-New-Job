@@ -1,0 +1,58 @@
+name: Job pipeline
+
+# Collects jobs, scores them and updates Airtable, twice a day at 08:00 and 18:00 Israel time.
+# GitHub's cron is in UTC and Israel's offset changes with daylight saving (+2 / +3), so the workflow
+# is triggered at both possible UTC hours and the script skips the one that is not 08:00 / 18:00 locally.
+on:
+  schedule:
+    - cron: "0 5 * * *"   # 08:00 Israel in summer
+    - cron: "0 6 * * *"   # 08:00 Israel in winter
+    - cron: "0 15 * * *"  # 18:00 Israel in summer
+    - cron: "0 16 * * *"  # 18:00 Israel in winter
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Collect and plan only, write nothing"
+        type: boolean
+        default: false
+      lookback:
+        description: "How far back to search (week for the first run / backfill, day for a light run)"
+        type: choice
+        options: [week, day]
+        default: week
+
+# Never two runs at the same time.
+concurrency:
+  group: job-pipeline
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Run (scheduled)
+        if: github.event_name == 'schedule'
+        run: npm run pipeline -- --scheduled-guard
+        env:
+          APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+          AIRTABLE_TOKEN: ${{ secrets.AIRTABLE_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+      - name: Run (manual)
+        if: github.event_name == 'workflow_dispatch'
+        run: npm run pipeline -- --lookback "${{ inputs.lookback }}" ${{ inputs.dry_run && '--dry-run' || '' }}
+        env:
+          APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+          AIRTABLE_TOKEN: ${{ secrets.AIRTABLE_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
