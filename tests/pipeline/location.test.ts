@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { detectCountry, detectOfficeRequirement, hasNoPlace, isLocationOk, matchCity } from "@/pipeline/location";
+import { detectCountry, detectOfficeRequirement, hasNoPlace, isApprovedRegionOnly, isLocationOk, matchCity } from "@/pipeline/location";
 import { CITIES } from "./fixtures";
 
 const city = (loc: string) => matchCity(loc, CITIES)?.city ?? null;
@@ -136,7 +136,7 @@ describe("isLocationOk (spec §2א)", () => {
   it("unknown requirement: the city decides", () => {
     expect(isLocationOk("Unknown", "Holon", CITIES)).toBe(true);
     expect(isLocationOk("Unknown", "Haifa", CITIES)).toBe(false);
-    expect(isLocationOk("Unknown", "Center District, Israel", CITIES)).toBe(false); // a region is a place, just not on the list
+    expect(isLocationOk("Unknown", "North District, Israel", CITIES)).toBe(false); // a region outside the approved area
   });
 
   it("no location at all is included: empty, or just the country (seen on real LinkedIn jobs)", () => {
@@ -149,9 +149,28 @@ describe("isLocationOk (spec §2א)", () => {
 
   it("but a missing city is not a free pass: a named place off the list, or another country, still fails", () => {
     expect(isLocationOk("Hybrid", "Haifa, Israel", CITIES)).toBe(false);
-    expect(isLocationOk("Hybrid", "Center District, Israel", CITIES)).toBe(false);
+    expect(isLocationOk("Hybrid", "Hod HaSharon, Center District, Israel", CITIES)).toBe(false); // a named city off the list wins over its region
     expect(isLocationOk("Daily office", "United States", CITIES)).toBe(false);
     expect(isLocationOk("Hybrid", "London, United Kingdom", CITIES)).toBe(false);
+  });
+
+  it("a region alone is included when it lies inside the approved area (seen on real LinkedIn jobs)", () => {
+    for (const loc of ["Center District, Israel", "Central District, Israel", "South District, Israel", "Southern District", "מחוז המרכז", "דרום", "Sharon", "Gush Dan"]) {
+      for (const req of ["Daily office", "Hybrid", "Unknown"] as const) expect(isLocationOk(req, loc, CITIES), `${req}: ${loc}`).toBe(true);
+    }
+  });
+
+  it("but a region outside the approved area is not: North, Haifa, Jerusalem", () => {
+    for (const loc of ["North District, Israel", "Haifa District, Israel", "Jerusalem District, Israel", "מחוז הצפון", "מחוז חיפה"]) {
+      expect(isLocationOk("Hybrid", loc, CITIES), loc).toBe(false);
+    }
+  });
+
+  it("isApprovedRegionOnly", () => {
+    expect(isApprovedRegionOnly("Center District, Israel")).toBe(true);
+    expect(isApprovedRegionOnly("Rosh HaAyin, Center District, Israel")).toBe(false); // first segment is a city
+    expect(isApprovedRegionOnly("North District, Israel")).toBe(false);
+    expect(isApprovedRegionOnly("")).toBe(false);
   });
 
   it("hasNoPlace", () => {
@@ -159,7 +178,7 @@ describe("isLocationOk (spec §2א)", () => {
     expect(hasNoPlace("  Israel ")).toBe(true);
     expect(hasNoPlace("Israel, ישראל")).toBe(true);
     expect(hasNoPlace("Tel Aviv, Israel")).toBe(false);
-    expect(hasNoPlace("Center District, Israel")).toBe(false);
+    expect(hasNoPlace("Center District, Israel")).toBe(false); // a region is a place (see isApprovedRegionOnly)
     expect(hasNoPlace("חיפה")).toBe(false);
   });
 });

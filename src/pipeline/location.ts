@@ -146,7 +146,8 @@ export function detectOfficeRequirement(input: {
  * - Fully remote → always OK, wherever it is (including outside Israel).
  * - Office required (daily or hybrid) → the city must be an active approved city.
  * - Outside Israel and not fully remote → not OK.
- * - No location at all (empty, or just "Israel") → OK: included and scored, not dropped.
+ * - No location at all (empty, or just "Israel"), or only a region inside the approved area
+ *   ("Center District") → OK: included and scored, not dropped.
  * - Unknown requirement → decided by the city: an approved city is OK either way, otherwise not.
  */
 export function isLocationOk(
@@ -158,13 +159,32 @@ export function isLocationOk(
   const country = detectCountry(location);
   if (country !== null && country !== "Israel") return false;
   if (hasNoPlace(location)) return true; // no location given: include it (the user's rule)
-  return matchCity(location, cities) !== null;
+  if (matchCity(location, cities) !== null) return true;
+  return isApprovedRegionOnly(location); // "Center District, Israel": no city, but inside the approved area
+}
+
+/**
+ * Regions that lie inside the approved commuting area (spec §2א: south, center, Gush Dan, Sharon,
+ * Shfela). A location that names only such a region ("Center District, Israel") has no city to
+ * check, so it is included. North, Haifa and Jerusalem districts are NOT in this list.
+ * (Region words like "district" are stripped before comparing.)
+ */
+const APPROVED_REGIONS = new Set(
+  [
+    "center", "central", "the center", "south", "southern", "the south", "sharon", "shfela", "gush dan", "gush dan area",
+    "המרכז", "מרכז", "הדרום", "דרום", "השרון", "שרון", "השפלה", "שפלה", "גוש דן",
+  ].map(foldForMatch),
+);
+
+/** True when the location is just a region inside the approved area, with no city named. */
+export function isApprovedRegionOnly(location: string): boolean {
+  return APPROVED_REGIONS.has(stripRegionWords(foldForMatch(firstSegment(location))));
 }
 
 /**
  * True when the location names no place at all: empty, or only the country ("Israel", "ישראל").
  * Such a job cannot be checked against the approved cities, so it is included rather than dropped.
- * A region alone ("Center District, Israel") is NOT "no place": it is a place that is not on the list.
+ * A region alone is handled separately (isApprovedRegionOnly): it is a place, just not a city on the list.
  */
 export function hasNoPlace(location: string): boolean {
   const first = foldForMatch(firstSegment(location));
