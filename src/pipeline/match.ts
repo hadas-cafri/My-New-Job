@@ -1,4 +1,5 @@
 import { DOMAINS, isDomain, type Domain } from "../lib/domains";
+import { triageJob } from "./triage";
 import { isTargetRole } from "./roles";
 import type { NormalizedJob } from "./types";
 
@@ -39,12 +40,12 @@ const MAX_RATIONALE_CHARS = 1500;
 
 export class MatchError extends Error {}
 
-/** Only jobs that can pass both filters are worth a model call. */
+/** Only jobs that can pass the filters (location, target role) and were not screened out are worth a model call. */
 export function shouldMatch(
   job: NormalizedJob,
   opts: { roles?: string[]; blocklist?: string[] } = {},
 ): boolean {
-  return job.locationOk && isTargetRole(job.title, opts.roles, opts.blocklist);
+  return job.locationOk && isTargetRole(job.title, opts.roles, opts.blocklist) && triageJob(job).triage !== "Not fit";
 }
 
 // Untrusted text must not be able to close the tags we wrap it in.

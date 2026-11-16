@@ -24,6 +24,14 @@ export function Dashboard() {
   const { conn, ready } = useConnection();
   const [load, setLoad] = useState<Load>({ state: "loading" });
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
+  const [undo, setUndo] = useState<{ id: string; title: string; previous: Status } | null>(null);
+
+  // The undo bar disappears by itself after a few seconds.
+  useEffect(() => {
+    if (!undo) return;
+    const t = setTimeout(() => setUndo(null), 10_000);
+    return () => clearTimeout(t);
+  }, [undo]);
 
   const fetchJobs = useCallback(async () => {
     if (!conn) return;
@@ -58,8 +66,23 @@ export function Dashboard() {
     return seen.length ? seen.sort().at(-1)! : null;
   }, [jobs]);
 
-  async function changeStatus(job: Job, status: Status) {
-    if (!conn) return;
+  /** One tap: the job leaves the list; the user can undo for a few seconds. */
+  async function quickNotRelevant(job: Job) {
+    const previous = job.status;
+    const ok = await changeStatus(job, "Not relevant");
+    if (ok) setUndo({ id: job.id, title: job.title, previous });
+  }
+
+  async function undoNotRelevant() {
+    if (!undo) return;
+    const { id, previous } = undo;
+    setUndo(null);
+    const job = load.state === "ready" ? load.jobs.find((j) => j.id === id) : undefined;
+    if (job) await changeStatus(job, previous);
+  }
+
+  async function changeStatus(job: Job, status: Status): Promise<boolean> {
+    if (!conn) return false;
     const appliedDate =
       status === "Applied" && !job.appliedDate ? new Date().toISOString().slice(0, 10) : undefined;
     try {
@@ -72,8 +95,10 @@ export function Dashboard() {
           ? { ...cur, jobs: cur.jobs.map((j) => (j.id === updated.id ? updated : j)) }
           : cur,
       );
+      return true;
     } catch {
       alert("העדכון נכשל. בדקי שלמפתח יש הרשאת כתיבה (data.records:write).");
+      return false;
     }
   }
 
@@ -209,9 +234,18 @@ export function Dashboard() {
 
       <ul className="cards">
         {visible.map((job) => (
-          <JobCard key={job.id} job={job} onStatus={changeStatus} onCvRequest={toggleCvRequest} />
+          <JobCard key={job.id} job={job} onStatus={changeStatus} onCvRequest={toggleCvRequest} onNotRelevant={quickNotRelevant} />
         ))}
       </ul>
+
+      {undo && (
+        <div className="undo" role="status">
+          <span>סומנה כלא רלוונטית: {undo.title}</span>
+          <button type="button" onClick={undoNotRelevant}>
+            בטלי
+          </button>
+        </div>
+      )}
     </>
   );
 }
@@ -220,9 +254,11 @@ function JobCard({
   job,
   onStatus,
   onCvRequest,
+  onNotRelevant,
 }: {
   job: Job;
   onStatus: (j: Job, s: Status) => void;
+  onNotRelevant: (j: Job) => void;
   onCvRequest: (j: Job) => void;
 }) {
   const pct = matchPercent(job);
@@ -280,6 +316,11 @@ function JobCard({
             title={job.cvSuggestionsRequested ? "לחצי לביטול הבקשה" : "גרסת הקו״ח המומלצת וההצעות יופקו רק למשרות שתבקשי"}
           >
             {job.cvSuggestionsRequested ? "✓ התבקשו הצעות (ביטול)" : "אני רוצה הצעות וגרסת קו״ח"}
+          </button>
+        )}
+        {job.status !== "Not relevant" && (
+          <button type="button" className="secondary" onClick={() => onNotRelevant(job)}>
+            לא רלוונטית
           </button>
         )}
         {job.applyUrl && (

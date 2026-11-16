@@ -234,6 +234,21 @@ async function runViewport(browser, base, vp) {
   const reqFields = reqPatch ? JSON.parse(reqPatch.body).fields : {};
   check(JSON.stringify(reqFields) === JSON.stringify({ "CV Suggestions Requested": true }), "request button PATCHes only CV Suggestions Requested");
 
+  // One-tap "not relevant": the job leaves the list, only Status is written, and it can be undone
+  const navina = page.locator(".card", { hasText: "Navina" });
+  const patchesBeforeNR = log.filter((l) => l.method === "PATCH").length;
+  await navina.getByRole("button", { name: "לא רלוונטית" }).click();
+  await page.waitForSelector(".undo");
+  const nrPatch = JSON.parse(log.filter((l) => l.method === "PATCH").slice(patchesBeforeNR).at(-1).body).fields;
+  check(JSON.stringify(nrPatch) === JSON.stringify({ Status: "Not relevant" }), "quick 'not relevant' PATCHes only Status");
+  check((await page.locator(".card", { hasText: "Navina" }).count()) === 0, "the job disappears from the list");
+  check(((await page.locator(".undo button").boundingBox())?.height ?? 0) >= 43.5, "the undo button is at least 44px tall");
+  await page.locator(".undo button").click();
+  await page.waitForSelector(".card:has-text('Navina')");
+  const undoPatch = JSON.parse(log.filter((l) => l.method === "PATCH").at(-1).body).fields;
+  check(JSON.stringify(undoPatch) === JSON.stringify({ Status: "Saved" }), "undo restores the previous status");
+  check((await overflowX(page)) <= 1, "no horizontal scroll with the undo bar");
+
   // Reload with 'remember' off → not connected, panel open
   await page.reload();
   await page.waitForSelector('input[type="password"]');

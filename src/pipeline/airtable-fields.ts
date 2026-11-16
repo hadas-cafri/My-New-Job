@@ -1,3 +1,4 @@
+import { triageJob } from "./triage";
 import type { NormalizedJob } from "./types";
 
 const MAX_DESCRIPTION = 50_000;
@@ -29,6 +30,7 @@ export function toAirtableFields(
   if (opts.isNew) {
     fields["First Seen"] = opts.today;
     fields["Status"] = "New";
+    fields["Triage"] = triageJob(job).triage; // first-pass screening, see triage.ts
   }
   return fields;
 }
