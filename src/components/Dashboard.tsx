@@ -238,16 +238,16 @@ function JobCard({
             </option>
           ))}
         </select>
-        {job.recommendedCv && <span className="pill">קו״ח בסיס: {job.recommendedCv}</span>}
+        {job.recommendedCv && job.cvSuggestions && <span className="pill">קו״ח בסיס: {job.recommendedCv}</span>}
         {!job.cvSuggestions && (
           <button
             type="button"
             className="btn"
             aria-pressed={job.cvSuggestionsRequested}
             onClick={() => onCvRequest(job)}
-            title={job.cvSuggestionsRequested ? "לחצי לביטול הבקשה" : "הצעות יופקו רק למשרות שתבקשי"}
+            title={job.cvSuggestionsRequested ? "לחצי לביטול הבקשה" : "גרסת הקו״ח המומלצת וההצעות יופקו רק למשרות שתבקשי"}
           >
-            {job.cvSuggestionsRequested ? "✓ התבקשו הצעות (ביטול)" : "אני רוצה הצעות לקו״ח"}
+            {job.cvSuggestionsRequested ? "✓ התבקשו הצעות (ביטול)" : "אני רוצה הצעות וגרסת קו״ח"}
           </button>
         )}
         {job.applyUrl && (

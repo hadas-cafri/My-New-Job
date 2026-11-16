@@ -196,6 +196,9 @@ async function runViewport(browser, base, vp) {
   await sugg.locator("details").evaluate((d) => { d.open = true; }); // may already be open from the long-text check
   check((await sugg.locator(".section", { hasText: "גרסת קו״ח מומלצת כבסיס" }).innerText()).includes("Base"), "suggestions show the recommended base CV version");
 
+  // The base-CV recommendation belongs to the on-demand suggestions: only cards that have them show it
+  check((await page.locator(".pill", { hasText: "קו״ח בסיס" }).count()) === 1, "base-CV tag only on the card that has suggestions");
+
   // "I want CV suggestions" button: only on cards without suggestions, writes only the request flag
   check((await page.locator(".card").first().getByRole("button", { name: /אני רוצה הצעות/ }).count()) === 0, "no request button on a card that already has suggestions");
   const reqCard = page.locator(".card", { has: page.getByRole("button", { name: /אני רוצה הצעות/ }) }).first();
