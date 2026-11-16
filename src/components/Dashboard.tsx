@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AirtableError, createClient } from "@/lib/airtable";
 import { domainLabel, isPreferredDomain } from "@/lib/domains";
+import { descriptionBlocks } from "@/lib/format";
 import { DEFAULT_FILTERS, filterJobs, matchPercent, sortJobs, type Filters } from "@/lib/jobs";
 import { STATUSES, STATUS_LABELS, type Job, type Status } from "@/lib/types";
 import { useConnection } from "./ConnectionProvider";
@@ -168,7 +169,7 @@ export function Dashboard() {
             checked={filters.locationOkOnly}
             onChange={(e) => set("locationOkOnly", e.target.checked)}
           />
-          מיקום מתאים בלבד
+          רק משרות באזור ההגעה שלי (או מרוחקות)
         </label>
       </section>
 
@@ -227,17 +228,20 @@ function JobCard({
       </div>
 
       <div className="row">
-        <select
-          aria-label="סטטוס המשרה"
-          value={job.status}
-          onChange={(e) => onStatus(job, e.target.value as Status)}
-        >
-          {STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {STATUS_LABELS[s]}
-            </option>
-          ))}
-        </select>
+        <label className="inline">
+          סטטוס:
+          <select
+            aria-label="סטטוס המשרה"
+            value={job.status}
+            onChange={(e) => onStatus(job, e.target.value as Status)}
+          >
+            {STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {STATUS_LABELS[s]}
+              </option>
+            ))}
+          </select>
+        </label>
         {job.recommendedCv && job.cvSuggestions && <span className="pill">קו״ח בסיס: {job.recommendedCv}</span>}
         {!job.cvSuggestions && (
           <button
@@ -267,7 +271,16 @@ function JobCard({
         <Section title="הצעות לשיפור קו״ח" text={job.cvSuggestions} />
         <Section title="פערים" text={job.skillGaps} />
         <Section title="מילות מפתח חסרות ל-ATS" text={job.missingKeywords} />
-        <Section title="תיאור המשרה" text={job.description} />
+        {job.description && (
+          <div className="section">
+            <h4>תיאור המשרה</h4>
+            <div className="desc" tabIndex={0} aria-label="תיאור המשרה (ניתן לגלול)">
+              {descriptionBlocks(job.description).map((b, i) =>
+                b.kind === "heading" ? <h5 key={i}>{b.text}</h5> : <p key={i}>{b.text}</p>,
+              )}
+            </div>
+          </div>
+        )}
         {job.notes && <Section title="הערות" text={job.notes} />}
       </details>
     </li>

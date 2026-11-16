@@ -38,14 +38,15 @@ const VIEWPORTS = [
     columns: 1,
     mobile: true,
   },
-  { name: "desktop-1280", options: { viewport: { width: 1280, height: 800 } }, columns: 2, mobile: false },
+  { name: "desktop-1280", options: { viewport: { width: 1280, height: 800 } }, columns: 1, mobile: false },
 ];
 
 const LONG_URL = "https://example.com/" + "a".repeat(220);
 const records = () => [
-  { id: "recAAAAAAAAAAAAAA", fields: { Title: "Senior Product Manager", Company: "JFrog", "Favorite Company": true, Location: "Herzliya", "Office Requirement": "Hybrid", "Match %": 0.91, Status: "New", Source: "LinkedIn", Domain: "Other", "Recommended CV": "Base", "Apply URL": "https://example.com/apply", "Match Rationale": "Strong platform experience.", "CV Suggestions": "Add 'developer platform' to the summary.", Description: `Long description with a very long link ${LONG_URL}` } },
-  { id: "recBBBBBBBBBBBBBB", fields: { Title: "Solution Architect", Company: "Navina", Location: "Tel Aviv", "Office Requirement": "Fully remote", "Match %": 0.62, Status: "Saved", Source: "Drushim", Domain: "Medtech" } },
-  { id: "recCCCCCCCCCCCCCC", fields: { Title: "מנהל/ת מוצר בכיר/ה", Company: "חברה לדוגמה", Location: "רמת גן", "Match %": 0.74, Status: "New", Source: "Drushim" } },
+  { id: "recAAAAAAAAAAAAAA", fields: { Title: "Senior Product Manager", Company: "JFrog", "Favorite Company": true, Location: "Herzliya", "Office Requirement": "Hybrid", "Match %": 0.91, "Location OK": true, Status: "New", Source: "LinkedIn", Domain: "Other", "Recommended CV": "Base", "Apply URL": "https://example.com/apply", "Match Rationale": "Strong platform experience.", "CV Suggestions": "Add 'developer platform' to the summary.", Description: `Long description with a very long link ${LONG_URL}` } },
+  { id: "recBBBBBBBBBBBBBB", fields: { Title: "Solution Architect", Company: "Navina", Location: "Tel Aviv", "Office Requirement": "Fully remote", "Match %": 0.62, "Location OK": true, Status: "Saved", Source: "Drushim", Domain: "Medtech" } },
+  { id: "recCCCCCCCCCCCCCC", fields: { Title: "מנהל/ת מוצר בכיר/ה", Company: "חברה לדוגמה", Location: "רמת גן", "Match %": 0.74, "Location OK": true, Status: "New", Source: "Drushim" } },
+  { id: "recDDDDDDDDDDDDDD", fields: { Title: "Product Manager", Company: "Skana Robotics", Location: "Caesarea, Haifa District, Israel", "Office Requirement": "Unknown", Status: "New", Source: "LinkedIn", Description: "OverviewWe build robots.ResponsibilitiesLead the team.Ship the product." } },
 ];
 
 const MIME = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".txt": "text/plain", ".json": "application/json", ".ico": "image/x-icon", ".svg": "image/svg+xml", ".woff2": "font/woff2" };
@@ -134,6 +135,17 @@ async function runViewport(browser, base, vp) {
   await connect(page, GOOD, false);
   await page.waitForSelector(".card");
   check((await page.locator(".card").count()) === 3, "3 job cards rendered");
+  // A job outside the approved area (Haifa) is hidden by default and appears only when the filter is unticked
+  check((await page.locator(".card", { hasText: "Skana" }).count()) === 0, "a job outside the approved area is hidden by default");
+  const locBox = page.getByLabel(/רק משרות באזור ההגעה/);
+  await locBox.uncheck();
+  check((await page.locator(".card").count()) === 4, "unticking the location filter shows the 4th job");
+  const skana = page.locator(".card", { hasText: "Skana" });
+  await skana.locator("details").evaluate((d) => { d.open = true; });
+  check((await skana.locator(".desc h5").allInnerTexts()).join("|") === "Overview|Responsibilities", "flattened description gets headings and lines");
+  check((await skana.locator(".desc p").count()) === 3, "description is split into separate lines");
+  await locBox.check();
+  check((await page.locator(".card").count()) === 3, "ticking the location filter hides it again");
   check((await storedToken(page)) === null, "token NOT in localStorage when 'remember' is off");
   check((await page.locator('input[type="password"]').inputValue()) === "", "token field is cleared after connecting");
   const html = await page.content();
@@ -163,10 +175,10 @@ async function runViewport(browser, base, vp) {
   );
   await page.locator('select[aria-label="מיון"]').selectOption("fit");
 
-  // Layout: 1 column on phones, 2 on desktop
+  // Layout: one column on phones AND desktop (opening one card must not leave a gap beside it)
   const boxes = await page.locator(".card").evaluateAll((els) => els.slice(0, 2).map((e) => e.getBoundingClientRect().toJSON()));
   const sameRow = Math.abs(boxes[0].top - boxes[1].top) < 2;
-  check(vp.columns === 2 ? sameRow : !sameRow, `${vp.columns} column layout`);
+  check(!sameRow, "1 column layout");
   check((await overflowX(page)) <= 1, "no horizontal scroll (dashboard)");
 
   // Details with a very long unbroken link must not overflow

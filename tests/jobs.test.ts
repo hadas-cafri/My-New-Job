@@ -32,6 +32,13 @@ const job = (over: Partial<Job>): Job => ({
 });
 
 describe("sortJobs", () => {
+  it("hides jobs outside the approved area by default (the user's rule), and shows them when unticked", () => {
+    const list = [job({ id: "ok", locationOk: true }), job({ id: "far", locationOk: false })];
+    expect(DEFAULT_FILTERS.locationOkOnly).toBe(true);
+    expect(filterJobs(list, DEFAULT_FILTERS).map((j) => j.id)).toEqual(["ok"]);
+    expect(filterJobs(list, { ...DEFAULT_FILTERS, locationOkOnly: false })).toHaveLength(2);
+  });
+
   it("orders by match descending, unscored last", () => {
     const sorted = sortJobs([
       job({ id: "a", match: 0.5 }),

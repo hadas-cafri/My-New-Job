@@ -18,7 +18,7 @@ export const DEFAULT_FILTERS: Filters = {
   source: "",
   status: "active",
   minMatch: 0,
-  locationOkOnly: false,
+  locationOkOnly: true, // jobs outside the approved commuting area are hidden unless the user unticks it
   sort: "fit",
 };
 
