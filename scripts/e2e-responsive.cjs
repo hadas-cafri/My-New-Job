@@ -191,6 +191,11 @@ async function runViewport(browser, base, vp) {
   const fields = patch ? JSON.parse(patch.body).fields : {};
   check(fields.Status === "Applied" && /^\d{4}-\d{2}-\d{2}$/.test(fields["Applied Date"]) && Object.keys(fields).length === 2, "status change PATCHes only Status + Applied Date");
 
+  // Suggestions always name the base CV version to start from
+  const sugg = page.locator(".card", { hasText: "Add 'developer platform'" }).first();
+  await sugg.locator("details").evaluate((d) => { d.open = true; }); // may already be open from the long-text check
+  check((await sugg.locator(".section", { hasText: "גרסת קו״ח מומלצת כבסיס" }).innerText()).includes("Base"), "suggestions show the recommended base CV version");
+
   // "I want CV suggestions" button: only on cards without suggestions, writes only the request flag
   check((await page.locator(".card").first().getByRole("button", { name: /אני רוצה הצעות/ }).count()) === 0, "no request button on a card that already has suggestions");
   const reqCard = page.locator(".card", { has: page.getByRole("button", { name: /אני רוצה הצעות/ }) }).first();

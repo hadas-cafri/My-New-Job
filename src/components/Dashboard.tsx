@@ -238,7 +238,7 @@ function JobCard({
             </option>
           ))}
         </select>
-        {job.recommendedCv && <span className="pill">קו״ח: {job.recommendedCv}</span>}
+        {job.recommendedCv && <span className="pill">קו״ח בסיס: {job.recommendedCv}</span>}
         {!job.cvSuggestions && (
           <button
             type="button"
@@ -260,6 +260,10 @@ function JobCard({
       <details>
         <summary>{job.cvSuggestions ? "פרטים והצעות לשיפור קו״ח" : "פרטים ותיאור המשרה"}</summary>
         <Section title="למה ההתאמה הזו" text={job.rationale} />
+        <Section
+          title="גרסת קו״ח מומלצת כבסיס"
+          text={job.recommendedCv && job.cvSuggestions ? job.recommendedCv : ""}
+        />
         <Section title="הצעות לשיפור קו״ח" text={job.cvSuggestions} />
         <Section title="פערים" text={job.skillGaps} />
         <Section title="מילות מפתח חסרות ל-ATS" text={job.missingKeywords} />
