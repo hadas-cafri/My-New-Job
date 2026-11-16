@@ -101,6 +101,15 @@ describe("write-back is limited to tracking fields", () => {
     expect(mapRecord({ id: "r", fields: {} }).cvSuggestionsRequested).toBe(false);
   });
 
+  it("reads the screening (Triage); anything else is treated as not screened", () => {
+    expect(mapRecord({ id: "r", fields: { Triage: "Fit" } }).triage).toBe("Fit");
+    expect(mapRecord({ id: "r", fields: { Triage: "Not fit" } }).triage).toBe("Not fit");
+    expect(mapRecord({ id: "r", fields: { Triage: "Whatever" } }).triage).toBeNull();
+    expect(mapRecord({ id: "r", fields: {} }).triage).toBeNull();
+    // the dashboard never writes it back
+    expect(patchToFields({ triage: "Fit" } as never)).toEqual({});
+  });
+
   it("cannot be coerced into writing other fields", () => {
     const sneaky = { status: "Saved", "Match %": 1, Title: "hack" } as never;
     expect(patchToFields(sneaky)).toEqual({ Status: "Saved" });

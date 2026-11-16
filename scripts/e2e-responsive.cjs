@@ -46,6 +46,8 @@ const records = () => [
   { id: "recAAAAAAAAAAAAAA", fields: { Title: "Senior Product Manager", Company: "JFrog", "Favorite Company": true, Location: "Herzliya", "Office Requirement": "Hybrid", "Match %": 0.91, "Location OK": true, Status: "New", Source: "LinkedIn", Domain: "Other", "Recommended CV": "Base", "Apply URL": "https://example.com/apply", "Match Rationale": "Strong platform experience.", "CV Suggestions": "Add 'developer platform' to the summary.", Description: `Long description with a very long link ${LONG_URL}` } },
   { id: "recBBBBBBBBBBBBBB", fields: { Title: "Solution Architect", Company: "Navina", Location: "Tel Aviv", "Office Requirement": "Fully remote", "Match %": 0.62, "Location OK": true, Status: "Saved", Source: "Drushim", Domain: "Medtech" } },
   { id: "recCCCCCCCCCCCCCC", fields: { Title: "מנהל/ת מוצר בכיר/ה", Company: "חברה לדוגמה", Location: "רמת גן", "Match %": 0.74, "Location OK": true, Status: "New", Source: "Drushim" } },
+  { id: "recEEEEEEEEEEEEEE", fields: { Title: "Customs Product Manager", Company: "Maersk", Location: "Ashdod", "Location OK": true, Triage: "Not fit", Status: "New", Source: "Drushim" } },
+  { id: "recFFFFFFFFFFFFFF", fields: { Title: "Old Product Manager", Company: "OldCo", Location: "Tel Aviv", "Location OK": true, "Posted Date": "2025-01-01", Status: "New", Source: "LinkedIn" } },
   { id: "recDDDDDDDDDDDDDD", fields: { Title: "Product Manager", Company: "Skana Robotics", Location: "Caesarea, Haifa District, Israel", "Office Requirement": "Unknown", Status: "New", Source: "LinkedIn", Description: "OverviewWe build robots.ResponsibilitiesLead the team.Ship the product." } },
 ];
 
@@ -146,6 +148,16 @@ async function runViewport(browser, base, vp) {
   check((await skana.locator(".desc p").count()) === 3, "description is split into separate lines");
   await locBox.check();
   check((await page.locator(".card").count()) === 3, "ticking the location filter hides it again");
+  // Jobs screened as "not fit" are not shown at all; jobs older than the date window are hidden by default
+  check((await page.locator(".card", { hasText: "Customs Product Manager" }).count()) === 0, "a job screened as not fit is hidden");
+  check((await page.locator(".card", { hasText: "Old Product Manager" }).count()) === 0, "a job older than 14 days is hidden by default");
+  await page.getByLabel(/הצג גם משרות שסוננו/).check();
+  check((await page.locator(".card", { hasText: "Customs Product Manager" }).count()) === 1, "ticking 'show filtered-out jobs' reveals the not-fit job");
+  await page.getByLabel(/הצג גם משרות שסוננו/).uncheck();
+  await page.getByLabel("תאריך פרסום").selectOption("0");
+  check((await page.locator(".card", { hasText: "Old Product Manager" }).count()) === 1, "choosing 'all dates' shows the old job");
+  await page.getByLabel("תאריך פרסום").selectOption("14");
+  check((await page.locator(".card").count()) === 3, "back to the default view: 3 cards");
   check((await storedToken(page)) === null, "token NOT in localStorage when 'remember' is off");
   check((await page.locator('input[type="password"]').inputValue()) === "", "token field is cleared after connecting");
   const html = await page.content();

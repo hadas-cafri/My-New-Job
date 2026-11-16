@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_FILTERS, filterJobs, isPriority, matchPercent, sortJobs } from "@/lib/jobs";
+import { DEFAULT_FILTERS, ageInDays, filterJobs, isPriority, matchPercent, sortJobs } from "@/lib/jobs";
 import type { Job } from "@/lib/types";
 
 const job = (over: Partial<Job>): Job => ({
@@ -18,6 +18,7 @@ const job = (over: Partial<Job>): Job => ({
   missingKeywords: "",
   cvSuggestions: "",
   cvSuggestionsRequested: false,
+  triage: null,
   recommendedCv: null,
   domain: null,
   source: "LinkedIn",
@@ -132,3 +133,43 @@ describe("matchPercent", () => {
     expect(matchPercent(job({ match: null }))).toBeNull();
   });
 });
+
+describe("first-pass screening (Triage) and freshness", () => {
+  const NOW = new Date("2026-11-16T12:00:00Z");
+  const list = [
+    job({ id: "fit", triage: "Fit", postedDate: "2026-11-14" }),
+    job({ id: "maybe", triage: "Maybe", postedDate: "2026-11-14" }),
+    job({ id: "none", triage: null, postedDate: "2026-11-14" }),
+    job({ id: "nofit", triage: "Not fit", postedDate: "2026-11-14" }),
+    job({ id: "old", triage: null, postedDate: "2026-10-20" }),
+    job({ id: "nodate", triage: null, postedDate: null }),
+  ];
+  const ids = (f: Partial<typeof DEFAULT_FILTERS>) =>
+    sortJobs(filterJobs(list, { ...DEFAULT_FILTERS, ...f }, NOW)).map((j) => j.id);
+
+  it("by default: not-fit jobs and jobs older than 14 days are hidden; favorites come first", () => {
+    expect(ids({})).toEqual(["fit", "maybe", "none", "nodate"]);
+  });
+
+  it("favorites only shows just the jobs screened as a fit", () => {
+    expect(ids({ view: "favorites" })).toEqual(["fit"]);
+  });
+
+  it("showing hidden jobs adds the not-fit ones, last", () => {
+    expect(ids({ showHidden: true })).toEqual(["fit", "maybe", "none", "nodate", "nofit"]);
+  });
+
+  it("the age window can be widened or removed; a job without a date is never dropped for age", () => {
+    expect(ids({ maxAgeDays: 7 })).toContain("nodate");
+    expect(ids({ maxAgeDays: 30 })).toContain("old");
+    expect(ids({ maxAgeDays: 0 })).toContain("old");
+  });
+
+  it("ageInDays", () => {
+    expect(ageInDays("2026-11-16", NOW)).toBe(0);
+    expect(ageInDays("2026-11-02", NOW)).toBe(14);
+    expect(ageInDays(null, NOW)).toBeNull();
+    expect(ageInDays("not a date", NOW)).toBeNull();
+  });
+});
+

@@ -22,6 +22,10 @@ export const STATUS_LABELS: Record<Status, string> = {
 /** Statuses shown by default ("active" filter). */
 export const ACTIVE_STATUSES: Status[] = ["New", "Saved", "Applied", "Interview"];
 
+/** First-pass screening written by Claude from title and company (Airtable field `Triage`). */
+export const TRIAGES = ["Fit", "Maybe", "Not fit"] as const;
+export type Triage = (typeof TRIAGES)[number];
+
 export type Job = {
   id: string;
   title: string;
@@ -40,6 +44,8 @@ export type Job = {
   cvSuggestions: string;
   /** The user ticked "I want CV suggestions for this job"; Claude writes them in the chat. */
   cvSuggestionsRequested: boolean;
+  /** Fit = shown first (favorites), Maybe / null = shown normally, Not fit = hidden unless asked for. */
+  triage: Triage | null;
   recommendedCv: string | null;
   domain: string | null;
   source: string | null;

@@ -1,5 +1,5 @@
 import type { Connection } from "./connection";
-import { STATUSES, type Job, type JobPatch, type Status } from "./types";
+import { STATUSES, TRIAGES, type Job, type JobPatch, type Status, type Triage } from "./types";
 
 const API = "https://api.airtable.com/v0";
 
@@ -37,6 +37,7 @@ export function mapRecord(rec: AirtableRecord): Job {
     missingKeywords: str(f["Missing ATS Keywords"]),
     cvSuggestions: str(f["CV Suggestions"]),
     cvSuggestionsRequested: f["CV Suggestions Requested"] === true,
+    triage: TRIAGES.includes(f["Triage"] as Triage) ? (f["Triage"] as Triage) : null,
     recommendedCv: strOrNull(f["Recommended CV"]),
     domain: strOrNull(f["Domain"]),
     source: strOrNull(f["Source"]),

@@ -10,6 +10,12 @@ export type Filters = {
   status: "active" | "all" | Status;
   minMatch: number; // 0..100
   locationOkOnly: boolean;
+  /** "favorites": only jobs screened as a fit. "all": everything (favorites first). */
+  view: "all" | "favorites";
+  /** Also show jobs screened as "not fit" (hidden by default). */
+  showHidden: boolean;
+  /** Only jobs posted within this many days; 0 = any date. Jobs without a date are always kept. */
+  maxAgeDays: number;
   sort: SortMode;
 };
 
@@ -19,16 +25,35 @@ export const DEFAULT_FILTERS: Filters = {
   status: "active",
   minMatch: 0,
   locationOkOnly: true, // jobs outside the approved commuting area are hidden unless the user unticks it
+  view: "all",
+  showHidden: false, // jobs screened as "not fit" are not shown at all unless asked for
+  maxAgeDays: 14,
   sort: "fit",
 };
 
-export function filterJobs(jobs: Job[], f: Filters): Job[] {
+const DAY_MS = 86_400_000;
+
+/** Whole days since a "YYYY-MM-DD" date (null when there is no usable date). */
+export function ageInDays(postedDate: string | null, now: Date): number | null {
+  if (!postedDate) return null;
+  const t = Date.parse(postedDate);
+  if (Number.isNaN(t)) return null;
+  return Math.floor((now.getTime() - t) / DAY_MS);
+}
+
+export function filterJobs(jobs: Job[], f: Filters, now: Date = new Date()): Job[] {
   const q = f.query.trim().toLowerCase();
   return jobs.filter((j) => {
     if (f.status === "active" && !ACTIVE_STATUSES.includes(j.status)) return false;
     if (f.status !== "active" && f.status !== "all" && j.status !== f.status) return false;
     if (f.source && j.source !== f.source) return false;
     if (f.locationOkOnly && !j.locationOk) return false;
+    if (j.triage === "Not fit" && !f.showHidden) return false;
+    if (f.view === "favorites" && j.triage !== "Fit") return false;
+    if (f.maxAgeDays > 0) {
+      const age = ageInDays(j.postedDate, now);
+      if (age !== null && age > f.maxAgeDays) return false;
+    }
     if ((j.match ?? 0) * 100 < f.minMatch) return false;
     if (q && !`${j.title} ${j.company} ${j.location}`.toLowerCase().includes(q)) return false;
     return true;
@@ -41,12 +66,18 @@ export function filterJobs(jobs: Job[], f: Filters): Job[] {
  */
 export const isPriority = (j: Job): boolean => j.favoriteCompany || isPreferredDomain(j.domain);
 
+/** Jobs screened as a fit come first, then the rest; "not fit" (when shown) last. */
+const triageRank = (j: Job) => (j.triage === "Fit" ? 0 : j.triage === "Not fit" ? 2 : 1);
+
 /**
- * "fit" (default): highest match first; on equal scores priority jobs come first; unscored last.
- * "priority": priority jobs first, then highest match. Newest posting breaks remaining ties.
+ * Screened-as-fit jobs always come first. Then "fit" (default): highest match first; on equal scores
+ * priority jobs come first; unscored last. "priority": priority jobs first, then highest match.
+ * Newest posting breaks remaining ties.
  */
 export function sortJobs(jobs: Job[], mode: SortMode = "fit"): Job[] {
   return [...jobs].sort((a, b) => {
+    const byTriage = triageRank(a) - triageRank(b);
+    if (byTriage) return byTriage;
     const byPriority = Number(isPriority(b)) - Number(isPriority(a));
     const byMatch = (b.match ?? -1) - (a.match ?? -1);
     const first = mode === "priority" ? byPriority || byMatch : byMatch || byPriority;

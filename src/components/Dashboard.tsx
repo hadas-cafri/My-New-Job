@@ -163,6 +163,24 @@ export function Dashboard() {
             onChange={(e) => set("minMatch", Number(e.target.value))}
           />
         </label>
+        <select
+          aria-label="תצוגה"
+          value={filters.view}
+          onChange={(e) => set("view", e.target.value as Filters["view"])}
+        >
+          <option value="all">תצוגה: הכול (מועדפות קודם)</option>
+          <option value="favorites">תצוגה: מועדפות בלבד</option>
+        </select>
+        <select
+          aria-label="תאריך פרסום"
+          value={filters.maxAgeDays}
+          onChange={(e) => set("maxAgeDays", Number(e.target.value))}
+        >
+          <option value={7}>פורסמו ב-7 הימים האחרונים</option>
+          <option value={14}>פורסמו ב-14 הימים האחרונים</option>
+          <option value={30}>פורסמו ב-30 הימים האחרונים</option>
+          <option value={0}>כל התאריכים</option>
+        </select>
         <label className="inline">
           <input
             type="checkbox"
@@ -170,6 +188,14 @@ export function Dashboard() {
             onChange={(e) => set("locationOkOnly", e.target.checked)}
           />
           רק משרות באזור ההגעה שלי (או מרוחקות)
+        </label>
+        <label className="inline">
+          <input
+            type="checkbox"
+            checked={filters.showHidden}
+            onChange={(e) => set("showHidden", e.target.checked)}
+          />
+          הצג גם משרות שסוננו כלא מתאימות
         </label>
       </section>
 
@@ -242,6 +268,8 @@ function JobCard({
             ))}
           </select>
         </label>
+        {job.triage === "Fit" && <span className="pill ok">מועדפת</span>}
+        {job.triage === "Not fit" && <span className="pill">סוננה כלא מתאימה</span>}
         {job.recommendedCv && job.cvSuggestions && <span className="pill">קו״ח בסיס: {job.recommendedCv}</span>}
         {!job.cvSuggestions && (
           <button
