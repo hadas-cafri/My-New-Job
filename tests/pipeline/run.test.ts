@@ -43,6 +43,7 @@ const ex = (over: Partial<ExistingJob> = {}): ExistingJob => ({
   status: "New",
   lastSeen: "2026-11-14",
   postedDate: "2026-11-12",
+  locationOk: true,
   match: null,
   title: "Senior Product Manager",
   company: "Acme",
@@ -121,6 +122,20 @@ describe("a normal run", () => {
     expect(created).toHaveLength(1);
     expect(created[0]["Location OK"]).toBe(false);
     expect(complete).not.toHaveBeenCalled();
+  });
+
+  it("a job with no location at all is included, and scored", async () => {
+    const { store, created } = setup();
+    const complete = vi.fn<Complete>().mockResolvedValue(reply({ score: 70 }));
+    await runPipeline({ sources: [LI], collect: collector({ "linkedin-pm": [li(4400000008, "Product Manager", "Mystery Co", "Israel")] }), store, complete }, OPTS);
+    expect(created[0]).toMatchObject({ Location: "Israel", "Location OK": true, "Match %": 0.7 });
+  });
+
+  it("a row stored before a rule change gets its Location OK flag refreshed (and nothing else changes)", async () => {
+    const stale = ex({ locationOk: false, location: "Israel" });
+    const { store, updated } = setup([stale]);
+    await runPipeline({ sources: [LI], collect: collector({ "linkedin-pm": [li(4400000001, "Senior Product Manager", "Acme", "Israel")] }), store }, OPTS);
+    expect(updated).toEqual([{ id: stale.recordId, fields: { "Last Seen": TODAY, "Location OK": true } }]);
   });
 
   it("refuses to start (and writes nothing) when the settings cannot be loaded", async () => {

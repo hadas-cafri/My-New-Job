@@ -109,7 +109,7 @@ export function createAirtableStore(opts: {
 
     async loadExistingJobs(): Promise<ExistingJob[]> {
       const rows = await listAll(TABLES.jobs, [
-        "External ID", "Status", "Last Seen", "Posted Date", "Match %", "Title", "Company", "Location", "Office Requirement", "Source",
+        "External ID", "Status", "Last Seen", "Posted Date", "Match %", "Title", "Company", "Location", "Location OK", "Office Requirement", "Source",
       ]);
       return rows
         .filter((r) => str(r.fields["External ID"]))
@@ -124,6 +124,7 @@ export function createAirtableStore(opts: {
             status: str(f["Status"]) || "New",
             lastSeen: str(f["Last Seen"]) || null,
             postedDate: str(f["Posted Date"]) || null,
+            locationOk: f["Location OK"] === true,
             match: typeof f["Match %"] === "number" ? (f["Match %"] as number) : null,
             title: str(f["Title"]),
             company: str(f["Company"]),

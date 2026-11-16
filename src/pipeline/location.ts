@@ -146,6 +146,7 @@ export function detectOfficeRequirement(input: {
  * - Fully remote → always OK, wherever it is (including outside Israel).
  * - Office required (daily or hybrid) → the city must be an active approved city.
  * - Outside Israel and not fully remote → not OK.
+ * - No location at all (empty, or just "Israel") → OK: included and scored, not dropped.
  * - Unknown requirement → decided by the city: an approved city is OK either way, otherwise not.
  */
 export function isLocationOk(
@@ -156,5 +157,16 @@ export function isLocationOk(
   if (officeRequirement === "Fully remote") return true;
   const country = detectCountry(location);
   if (country !== null && country !== "Israel") return false;
+  if (hasNoPlace(location)) return true; // no location given: include it (the user's rule)
   return matchCity(location, cities) !== null;
+}
+
+/**
+ * True when the location names no place at all: empty, or only the country ("Israel", "ישראל").
+ * Such a job cannot be checked against the approved cities, so it is included rather than dropped.
+ * A region alone ("Center District, Israel") is NOT "no place": it is a place that is not on the list.
+ */
+export function hasNoPlace(location: string): boolean {
+  const first = foldForMatch(firstSegment(location));
+  return first === "" || first === "israel" || first === "ישראל";
 }

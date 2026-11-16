@@ -177,20 +177,20 @@ describe("Airtable store", () => {
   it("lists existing jobs across pages, mapping fields and skipping rows without an External ID", async () => {
     const rows = Array.from({ length: 5 }, (_, i) => ({
       id: `rec${i}`,
-      fields: { "External ID": `LinkedIn:${i}`, Status: "Saved", "Last Seen": "2026-11-14", "Posted Date": "2026-11-10", "Match %": 0.8, Title: "PM", Company: "Acme", Location: "Holon", "Office Requirement": "Hybrid", Source: "LinkedIn" },
+      fields: { "External ID": `LinkedIn:${i}`, Status: "Saved", "Last Seen": "2026-11-14", "Posted Date": "2026-11-10", "Match %": 0.8, Title: "PM", Company: "Acme", Location: "Holon", "Location OK": true, "Office Requirement": "Hybrid", Source: "LinkedIn" },
     }));
     rows.push({ id: "recX", fields: { "External ID": "", Title: "no id" } as never });
     const jobs = await store(fakeAirtable({ [TABLES.jobs]: rows }, 2)).loadExistingJobs();
     expect(jobs).toHaveLength(5);
     expect(jobs[0]).toEqual({
       recordId: "rec0", externalId: "LinkedIn:0", source: "LinkedIn", status: "Saved", lastSeen: "2026-11-14", postedDate: "2026-11-10",
-      match: 0.8, title: "PM", company: "Acme", location: "Holon", officeRequirement: "Hybrid",
+      locationOk: true, match: 0.8, title: "PM", company: "Acme", location: "Holon", officeRequirement: "Hybrid",
     });
   });
 
   it("defaults missing fields safely", async () => {
     const [job] = await store(fakeAirtable({ [TABLES.jobs]: [{ id: "r", fields: { "External ID": "X:1", Source: "Mystery", "Office Requirement": "???" } }] })).loadExistingJobs();
-    expect(job).toMatchObject({ source: null, status: "New", lastSeen: null, match: null, officeRequirement: "Unknown" });
+    expect(job).toMatchObject({ source: null, status: "New", lastSeen: null, match: null, locationOk: false, officeRequirement: "Unknown" });
   });
 
   it("writes in batches of 10 with typecast, pausing between batches", async () => {

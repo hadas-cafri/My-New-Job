@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { detectCountry, detectOfficeRequirement, isLocationOk, matchCity } from "@/pipeline/location";
+import { detectCountry, detectOfficeRequirement, hasNoPlace, isLocationOk, matchCity } from "@/pipeline/location";
 import { CITIES } from "./fixtures";
 
 const city = (loc: string) => matchCity(loc, CITIES)?.city ?? null;
@@ -136,6 +136,30 @@ describe("isLocationOk (spec §2א)", () => {
   it("unknown requirement: the city decides", () => {
     expect(isLocationOk("Unknown", "Holon", CITIES)).toBe(true);
     expect(isLocationOk("Unknown", "Haifa", CITIES)).toBe(false);
-    expect(isLocationOk("Unknown", "Israel", CITIES)).toBe(false);
+    expect(isLocationOk("Unknown", "Center District, Israel", CITIES)).toBe(false); // a region is a place, just not on the list
+  });
+
+  it("no location at all is included: empty, or just the country (seen on real LinkedIn jobs)", () => {
+    for (const req of ["Daily office", "Hybrid", "Unknown"] as const) {
+      expect(isLocationOk(req, "", CITIES), `${req}: empty`).toBe(true);
+      expect(isLocationOk(req, "Israel", CITIES), `${req}: Israel`).toBe(true);
+      expect(isLocationOk(req, "ישראל", CITIES), `${req}: ישראל`).toBe(true);
+    }
+  });
+
+  it("but a missing city is not a free pass: a named place off the list, or another country, still fails", () => {
+    expect(isLocationOk("Hybrid", "Haifa, Israel", CITIES)).toBe(false);
+    expect(isLocationOk("Hybrid", "Center District, Israel", CITIES)).toBe(false);
+    expect(isLocationOk("Daily office", "United States", CITIES)).toBe(false);
+    expect(isLocationOk("Hybrid", "London, United Kingdom", CITIES)).toBe(false);
+  });
+
+  it("hasNoPlace", () => {
+    expect(hasNoPlace("")).toBe(true);
+    expect(hasNoPlace("  Israel ")).toBe(true);
+    expect(hasNoPlace("Israel, ישראל")).toBe(true);
+    expect(hasNoPlace("Tel Aviv, Israel")).toBe(false);
+    expect(hasNoPlace("Center District, Israel")).toBe(false);
+    expect(hasNoPlace("חיפה")).toBe(false);
   });
 });

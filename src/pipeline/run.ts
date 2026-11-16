@@ -20,6 +20,8 @@ export type ExistingJob = {
   status: string;
   lastSeen: string | null;
   postedDate: string | null;
+  /** The stored `Location OK` flag. It is derived from rules, so it is refreshed when the rules change. */
+  locationOk: boolean;
   /** Fraction 0..1, null when never scored. */
   match: number | null;
   title: string;
@@ -263,6 +265,7 @@ export async function runPipeline(deps: Deps, opts: RunOptions): Promise<RunRepo
       fields: {
         "Last Seen": today,
         ...(row.status === "Closed" ? { Status: "New" } : {}), // it is listed again: reopen
+        ...(row.locationOk !== job.locationOk ? { "Location OK": job.locationOk } : {}), // derived flag: follow the current rules
         ...(scored.get(job.externalId) ?? {}),
       },
     })),
