@@ -38,6 +38,8 @@ export type Job = {
   skillGaps: string;
   missingKeywords: string;
   cvSuggestions: string;
+  /** The user ticked "I want CV suggestions for this job"; Claude writes them in the chat. */
+  cvSuggestionsRequested: boolean;
   recommendedCv: string | null;
   domain: string | null;
   source: string | null;
@@ -50,9 +52,10 @@ export type Job = {
   notes: string;
 };
 
-/** The only fields the dashboard may write back (spec §4). */
+/** The only fields the dashboard may write back (spec §4): status, notes, applied date, CV-suggestions request. */
 export type JobPatch = {
   status?: Status;
   notes?: string;
   appliedDate?: string | null;
+  cvSuggestionsRequested?: boolean;
 };

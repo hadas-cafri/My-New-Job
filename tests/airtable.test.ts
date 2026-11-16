@@ -94,6 +94,13 @@ describe("write-back is limited to tracking fields", () => {
     expect(patchToFields({ appliedDate: null })).toEqual({ "Applied Date": null });
   });
 
+  it("maps the CV-suggestions request (checkbox) and reads it back", () => {
+    expect(patchToFields({ cvSuggestionsRequested: true })).toEqual({ "CV Suggestions Requested": true });
+    expect(patchToFields({ cvSuggestionsRequested: false })).toEqual({ "CV Suggestions Requested": false });
+    expect(mapRecord({ id: "r", fields: { "CV Suggestions Requested": true } }).cvSuggestionsRequested).toBe(true);
+    expect(mapRecord({ id: "r", fields: {} }).cvSuggestionsRequested).toBe(false);
+  });
+
   it("cannot be coerced into writing other fields", () => {
     const sneaky = { status: "Saved", "Match %": 1, Title: "hack" } as never;
     expect(patchToFields(sneaky)).toEqual({ Status: "Saved" });

@@ -17,6 +17,7 @@ const job = (over: Partial<Job>): Job => ({
   skillGaps: "",
   missingKeywords: "",
   cvSuggestions: "",
+  cvSuggestionsRequested: false,
   recommendedCv: null,
   domain: null,
   source: "LinkedIn",

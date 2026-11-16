@@ -36,6 +36,7 @@ export function mapRecord(rec: AirtableRecord): Job {
     skillGaps: str(f["Skill Gaps"]),
     missingKeywords: str(f["Missing ATS Keywords"]),
     cvSuggestions: str(f["CV Suggestions"]),
+    cvSuggestionsRequested: f["CV Suggestions Requested"] === true,
     recommendedCv: strOrNull(f["Recommended CV"]),
     domain: strOrNull(f["Domain"]),
     source: strOrNull(f["Source"]),
@@ -49,12 +50,13 @@ export function mapRecord(rec: AirtableRecord): Job {
   };
 }
 
-/** The dashboard may write back only these three fields (spec §4). */
+/** The dashboard may write back only these four fields (spec §4). */
 export function patchToFields(patch: JobPatch): Record<string, unknown> {
   const fields: Record<string, unknown> = {};
   if (patch.status !== undefined) fields["Status"] = patch.status;
   if (patch.notes !== undefined) fields["Notes"] = patch.notes;
   if (patch.appliedDate !== undefined) fields["Applied Date"] = patch.appliedDate;
+  if (patch.cvSuggestionsRequested !== undefined) fields["CV Suggestions Requested"] = patch.cvSuggestionsRequested;
   return fields;
 }
 

@@ -76,6 +76,22 @@ export function Dashboard() {
     }
   }
 
+  async function toggleCvRequest(job: Job) {
+    if (!conn) return;
+    try {
+      const updated = await createClient(conn).updateJob(job.id, {
+        cvSuggestionsRequested: !job.cvSuggestionsRequested,
+      });
+      setLoad((cur) =>
+        cur.state === "ready"
+          ? { ...cur, jobs: cur.jobs.map((j) => (j.id === updated.id ? updated : j)) }
+          : cur,
+      );
+    } catch {
+      alert("העדכון נכשל. ייתכן שחסר ב-Airtable השדה 'CV Suggestions Requested', או שלמפתח אין הרשאת כתיבה.");
+    }
+  }
+
   if (!ready) return null;
   if (!conn) {
     return <p className="panel">כדי לראות משרות, הזיני מפתח Airtable בחלונית &quot;חיבור ל-Airtable&quot; למעלה.</p>;
@@ -166,14 +182,22 @@ export function Dashboard() {
 
       <ul className="cards">
         {visible.map((job) => (
-          <JobCard key={job.id} job={job} onStatus={changeStatus} />
+          <JobCard key={job.id} job={job} onStatus={changeStatus} onCvRequest={toggleCvRequest} />
         ))}
       </ul>
     </>
   );
 }
 
-function JobCard({ job, onStatus }: { job: Job; onStatus: (j: Job, s: Status) => void }) {
+function JobCard({
+  job,
+  onStatus,
+  onCvRequest,
+}: {
+  job: Job;
+  onStatus: (j: Job, s: Status) => void;
+  onCvRequest: (j: Job) => void;
+}) {
   const pct = matchPercent(job);
   return (
     <li className="card">
@@ -215,6 +239,17 @@ function JobCard({ job, onStatus }: { job: Job; onStatus: (j: Job, s: Status) =>
           ))}
         </select>
         {job.recommendedCv && <span className="pill">קו״ח: {job.recommendedCv}</span>}
+        {!job.cvSuggestions && (
+          <button
+            type="button"
+            className="btn"
+            aria-pressed={job.cvSuggestionsRequested}
+            onClick={() => onCvRequest(job)}
+            title={job.cvSuggestionsRequested ? "לחצי לביטול הבקשה" : "הצעות יופקו רק למשרות שתבקשי"}
+          >
+            {job.cvSuggestionsRequested ? "✓ התבקשו הצעות (ביטול)" : "אני רוצה הצעות לקו״ח"}
+          </button>
+        )}
         {job.applyUrl && (
           <a className="btn" href={job.applyUrl} target="_blank" rel="noopener noreferrer">
             הגשה
@@ -223,7 +258,7 @@ function JobCard({ job, onStatus }: { job: Job; onStatus: (j: Job, s: Status) =>
       </div>
 
       <details>
-        <summary>פרטים והצעות לשיפור קו״ח</summary>
+        <summary>{job.cvSuggestions ? "פרטים והצעות לשיפור קו״ח" : "פרטים ותיאור המשרה"}</summary>
         <Section title="למה ההתאמה הזו" text={job.rationale} />
         <Section title="הצעות לשיפור קו״ח" text={job.cvSuggestions} />
         <Section title="פערים" text={job.skillGaps} />

@@ -191,6 +191,17 @@ async function runViewport(browser, base, vp) {
   const fields = patch ? JSON.parse(patch.body).fields : {};
   check(fields.Status === "Applied" && /^\d{4}-\d{2}-\d{2}$/.test(fields["Applied Date"]) && Object.keys(fields).length === 2, "status change PATCHes only Status + Applied Date");
 
+  // "I want CV suggestions" button: only on cards without suggestions, writes only the request flag
+  check((await page.locator(".card").first().getByRole("button", { name: /אני רוצה הצעות/ }).count()) === 0, "no request button on a card that already has suggestions");
+  const reqCard = page.locator(".card", { has: page.getByRole("button", { name: /אני רוצה הצעות/ }) }).first();
+  check((await reqCard.count()) === 1, "a card without suggestions shows the request button");
+  const patchesBefore = log.filter((l) => l.method === "PATCH").length;
+  await reqCard.getByRole("button", { name: /אני רוצה הצעות/ }).click();
+  await page.waitForSelector("text=התבקשו הצעות");
+  const reqPatch = log.filter((l) => l.method === "PATCH").slice(patchesBefore).at(-1);
+  const reqFields = reqPatch ? JSON.parse(reqPatch.body).fields : {};
+  check(JSON.stringify(reqFields) === JSON.stringify({ "CV Suggestions Requested": true }), "request button PATCHes only CV Suggestions Requested");
+
   // Reload with 'remember' off → not connected, panel open
   await page.reload();
   await page.waitForSelector('input[type="password"]');
