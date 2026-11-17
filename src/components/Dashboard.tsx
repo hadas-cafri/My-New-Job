@@ -175,7 +175,7 @@ export function Dashboard() {
           onChange={(e) => set("sort", e.target.value as Filters["sort"])}
         >
           <option value="fit">מיון: לפי התאמה</option>
-          <option value="priority">מיון: עדיפות קודם</option>
+          <option value="priority">מיון: ★ חברות ותחומי יעד קודם</option>
         </select>
         <label className="inline">
           התאמה מעל {filters.minMatch}%
@@ -268,10 +268,10 @@ function JobCard({
         <div className="card-title">
           <h3>{job.title}</h3>
           <p className="company">
-            {job.favoriteCompany && <span title="חברה מועדפת">★ </span>}
+            {job.favoriteCompany && <span title="חברת יעד">★ </span>}
             {job.company}
             {job.domain && job.domain !== "Other" && (
-              <span className="pill" title={isPreferredDomain(job.domain) ? "תחום מועדף" : undefined}>
+              <span className="pill" title={isPreferredDomain(job.domain) ? "תחום יעד" : undefined}>
                 {" "}
                 {isPreferredDomain(job.domain) ? "★ " : ""}
                 {domainLabel(job.domain)}
