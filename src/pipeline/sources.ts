@@ -1,6 +1,16 @@
 import type { SourceConfig } from "./run";
+import { NOT_FIT_TITLE } from "./triage";
 
 export type Lookback = "week" | "day";
+
+/**
+ * Title words LinkedIn jobs are dropped for AT THE SOURCE (valig `titleExclude`): the same words that make
+ * triage.ts say "not fit", one word each. Dropped jobs are never collected, so they cannot be shown later.
+ * Left out on purpose: multi-word phrases (the actor matches all words of a phrase anywhere in the title)
+ * and very short tokens that could sit inside an ordinary word ("iam", "uas").
+ */
+const RISKY_AT_SOURCE = new Set(["iam", "uas", "pre sales"]);
+export const SOURCE_TITLE_EXCLUDE: string[] = NOT_FIT_TITLE.filter((w) => !RISKY_AT_SOURCE.has(w) && !w.includes(" "));
 
 /** How many days back the LinkedIn searches look; also the window in which a missing job may be closed. */
 export const lookbackDays = (l: Lookback): number => (l === "day" ? 1 : 7);
@@ -26,7 +36,7 @@ export function buildSources(opts: { lookback?: Lookback; limit?: number } = {})
     key,
     source: "LinkedIn",
     actor: "valig/linkedin-jobs-scraper",
-    input: { keywords, location: "Israel", datePosted, limit: cap(limit) },
+    input: { keywords, location: "Israel", datePosted, limit: cap(limit), titleExclude: SOURCE_TITLE_EXCLUDE },
   });
   const drushim = (key: string, query: string, maxResults: number): SourceConfig => ({
     key,

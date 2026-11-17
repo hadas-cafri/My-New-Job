@@ -10,7 +10,7 @@ import type { NormalizedJob } from "./types";
 export type Triage = "Fit" | "Maybe" | "Not fit";
 
 /** Title words that rule a job out: seniority above the target, technical roles, cloud / security / hardware. */
-const NOT_FIT_TITLE = [
+export const NOT_FIT_TITLE = [
   "principal", "staff", "tpm", "technical", "engineer", "cisco", "customs",
   "security", "secure", "cyber", "grc", "iam", "cloud", "aws", "azure", "gcp", "devops", "networking", "infra", "presales", "pre sales", "uas",
   "טכני", "טכנית", "טכניים", "טכנולוגי", "טכנולוגית", "טכנולוגיים", "סייבר", "הסייבר", "אבטחת", "האבטחת", "אבטחה", "האבטחה", "עמילות מכס", "הנדסת מכונות", "לא דיגיטלי",
