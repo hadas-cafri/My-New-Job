@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_FILTERS, ageInDays, filterJobs, isPriority, matchPercent, sortJobs } from "@/lib/jobs";
+import { DEFAULT_FILTERS, ageInDays, filterJobs, hiddenCounts, isPriority, matchPercent, sortJobs } from "@/lib/jobs";
 import type { Job } from "@/lib/types";
 
 const job = (over: Partial<Job>): Job => ({
@@ -193,6 +193,35 @@ describe("sort modes", () => {
 
   it("target companies first", () => {
     expect(ids("priority")).toEqual(["fit-old", "new-star", "old-high", "new-none"]);
+  });
+});
+
+describe("hiddenCounts: says what the automatic filters hide", () => {
+  const NOW = new Date("2026-11-16T12:00:00Z");
+  const list = [
+    job({ id: "shown", postedDate: "2026-11-14" }),
+    job({ id: "far", locationOk: false, postedDate: "2026-11-14" }),
+    job({ id: "nofit", triage: "Not fit", postedDate: "2026-11-14" }),
+    job({ id: "nofit2", triage: "Not fit", postedDate: "2026-11-14" }),
+    job({ id: "old", postedDate: "2026-10-01" }),
+    job({ id: "closed", status: "Closed", postedDate: "2026-11-14" }),
+    job({ id: "far-and-nofit", locationOk: false, triage: "Not fit", postedDate: "2026-11-14" }),
+  ];
+
+  it("counts each hidden job once, under the first reason", () => {
+    expect(hiddenCounts(list, DEFAULT_FILTERS, NOW)).toEqual({ status: 1, outsideArea: 2, notFit: 2, tooOld: 1 });
+  });
+
+  it("the numbers add up: shown + hidden = all", () => {
+    const shown = filterJobs(list, DEFAULT_FILTERS, NOW).length;
+    const h = hiddenCounts(list, DEFAULT_FILTERS, NOW);
+    expect(shown + h.status + h.outsideArea + h.notFit + h.tooOld).toBe(list.length);
+  });
+
+  it("turning the filters off leaves nothing hidden", () => {
+    const off = { ...DEFAULT_FILTERS, status: "all" as const, locationOkOnly: false, showHidden: true, maxAgeDays: 0 };
+    expect(hiddenCounts(list, off, NOW)).toEqual({ status: 0, outsideArea: 0, notFit: 0, tooOld: 0 });
+    expect(filterJobs(list, off, NOW)).toHaveLength(list.length);
   });
 });
 

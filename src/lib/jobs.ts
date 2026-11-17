@@ -60,6 +60,29 @@ export function filterJobs(jobs: Job[], f: Filters, now: Date = new Date()): Job
   });
 }
 
+/** Why jobs are not on screen: each job is counted once, under the first filter that hides it. */
+export type HiddenCounts = { status: number; outsideArea: number; notFit: number; tooOld: number };
+
+/**
+ * Counts the jobs the automatic filters hide (status, commuting area, screened as not fit, age), so the
+ * page can say what is missing. The user's own search / source / score filters are not counted.
+ */
+export function hiddenCounts(jobs: Job[], f: Filters, now: Date = new Date()): HiddenCounts {
+  const c: HiddenCounts = { status: 0, outsideArea: 0, notFit: 0, tooOld: 0 };
+  for (const j of jobs) {
+    const statusHidden =
+      f.status === "active" ? !ACTIVE_STATUSES.includes(j.status) : f.status !== "all" && j.status !== f.status;
+    if (statusHidden) c.status++;
+    else if (f.locationOkOnly && !j.locationOk) c.outsideArea++;
+    else if (j.triage === "Not fit" && !f.showHidden) c.notFit++;
+    else if (f.maxAgeDays > 0) {
+      const age = ageInDays(j.postedDate, now);
+      if (age !== null && age > f.maxAgeDays) c.tooOld++;
+    }
+  }
+  return c;
+}
+
 /**
  * How much the user WANTS the job, separate from how well she FITS it (the match score):
  * a favorite company or a preferred domain.

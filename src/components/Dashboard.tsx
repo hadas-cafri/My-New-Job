@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AirtableError, createClient } from "@/lib/airtable";
 import { domainLabel, isPreferredDomain } from "@/lib/domains";
 import { descriptionBlocks } from "@/lib/format";
-import { DEFAULT_FILTERS, filterJobs, matchPercent, sortJobs, type Filters } from "@/lib/jobs";
+import { DEFAULT_FILTERS, filterJobs, hiddenCounts, matchPercent, sortJobs, type Filters } from "@/lib/jobs";
 import { STATUSES, STATUS_LABELS, type Job, type Status } from "@/lib/types";
 import { useConnection } from "./ConnectionProvider";
 
@@ -56,6 +56,7 @@ export function Dashboard() {
   }, [fetchJobs]);
 
   const jobs = load.state === "ready" ? load.jobs : [];
+  const hidden = hiddenCounts(jobs, filters);
   const hasScores = jobs.some((j) => j.match !== null); // sorting / filtering by score only makes sense once jobs have scores
   const visible = useMemo(() => sortJobs(filterJobs(jobs, filters), filters.sort), [jobs, filters]);
   const sources = useMemo(
@@ -230,6 +231,21 @@ export function Dashboard() {
 
       <p className="muted">
         {visible.length} משרות מתוך {jobs.length}
+        {hidden.status + hidden.outsideArea + hidden.notFit + hidden.tooOld > 0 && (
+          <>
+            {" "}
+            · מוסתרות:{" "}
+            {[
+              hidden.outsideArea > 0 && `${hidden.outsideArea} מחוץ לאזור ההגעה`,
+              hidden.notFit > 0 && `${hidden.notFit} סוננו כלא מתאימות`,
+              hidden.tooOld > 0 && `${hidden.tooOld} ישנות יותר מהתאריך שנבחר`,
+              hidden.status > 0 && `${hidden.status} בסטטוס לא פעיל`,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+            . כדי להציג אותן, כבי את הסינון המתאים למעלה.
+          </>
+        )}
       </p>
 
       {jobs.length === 0 && (

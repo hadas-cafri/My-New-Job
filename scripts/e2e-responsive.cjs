@@ -137,6 +137,9 @@ async function runViewport(browser, base, vp) {
   await connect(page, GOOD, false);
   await page.waitForSelector(".card");
   check((await page.locator(".card").count()) === 3, "3 job cards rendered");
+  // The page says what is hidden and why
+  const hiddenLine = await page.locator("p.muted", { hasText: "מוסתרות" }).innerText();
+  check(/1 מחוץ לאזור ההגעה/.test(hiddenLine) && /1 סוננו כלא מתאימות/.test(hiddenLine) && /1 ישנות/.test(hiddenLine), "the page lists the hidden jobs by reason");
   // A job outside the approved area (Haifa) is hidden by default and appears only when the filter is unticked
   check((await page.locator(".card", { hasText: "Skana" }).count()) === 0, "a job outside the approved area is hidden by default");
   const locBox = page.getByLabel(/רק משרות באזור ההגעה/);
