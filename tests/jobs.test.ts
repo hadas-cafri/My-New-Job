@@ -173,3 +173,26 @@ describe("first-pass screening (Triage) and freshness", () => {
   });
 });
 
+describe("sort modes", () => {
+  const list = [
+    job({ id: "old-high", match: 0.9, postedDate: "2026-11-01" }),
+    job({ id: "new-none", match: null, postedDate: "2026-11-15" }),
+    job({ id: "fit-old", triage: "Fit", postedDate: "2026-11-02" }),
+    job({ id: "new-star", match: null, favoriteCompany: true, postedDate: "2026-11-14" }),
+  ];
+  const ids = (mode: Parameters<typeof sortJobs>[1]) => sortJobs(list, mode).map((j) => j.id);
+
+  it("the default is newest first (there are no scores yet), jobs that look like a fit on top", () => {
+    expect(DEFAULT_FILTERS.sort).toBe("newest");
+    expect(ids("newest")).toEqual(["fit-old", "new-none", "new-star", "old-high"]);
+  });
+
+  it("by score: highest score first (a job that looks like a fit still comes first)", () => {
+    expect(ids("fit")).toEqual(["fit-old", "old-high", "new-star", "new-none"]);
+  });
+
+  it("target companies first", () => {
+    expect(ids("priority")).toEqual(["fit-old", "new-star", "old-high", "new-none"]);
+  });
+});
+

@@ -56,6 +56,7 @@ export function Dashboard() {
   }, [fetchJobs]);
 
   const jobs = load.state === "ready" ? load.jobs : [];
+  const hasScores = jobs.some((j) => j.match !== null); // sorting / filtering by score only makes sense once jobs have scores
   const visible = useMemo(() => sortJobs(filterJobs(jobs, filters), filters.sort), [jobs, filters]);
   const sources = useMemo(
     () => [...new Set(jobs.map((j) => j.source).filter((s): s is string => !!s))],
@@ -174,27 +175,30 @@ export function Dashboard() {
           value={filters.sort}
           onChange={(e) => set("sort", e.target.value as Filters["sort"])}
         >
-          <option value="fit">מיון: לפי התאמה</option>
-          <option value="priority">מיון: ★ חברות ותחומי יעד קודם</option>
+          <option value="newest">מיון: חדשות קודם</option>
+          {hasScores && <option value="fit">מיון: לפי ציון התאמה לקו״ח</option>}
+          <option value="priority">מיון: ★ חברות מטרה קודם</option>
         </select>
-        <label className="inline">
-          התאמה מעל {filters.minMatch}%
-          <input
-            type="range"
-            min={0}
-            max={100}
-            step={5}
-            value={filters.minMatch}
-            onChange={(e) => set("minMatch", Number(e.target.value))}
-          />
-        </label>
+        {hasScores && (
+          <label className="inline">
+            ציון התאמה מעל {filters.minMatch}%
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              value={filters.minMatch}
+              onChange={(e) => set("minMatch", Number(e.target.value))}
+            />
+          </label>
+        )}
         <select
           aria-label="תצוגה"
           value={filters.view}
           onChange={(e) => set("view", e.target.value as Filters["view"])}
         >
-          <option value="all">תצוגה: הכול (מועדפות קודם)</option>
-          <option value="favorites">תצוגה: מועדפות בלבד</option>
+          <option value="all">תצוגה: כל המשרות</option>
+          <option value="favorites">תצוגה: רק משרות שנראות מתאימות לפי הכותרת</option>
         </select>
         <select
           aria-label="תאריך פרסום"
@@ -268,10 +272,10 @@ function JobCard({
         <div className="card-title">
           <h3>{job.title}</h3>
           <p className="company">
-            {job.favoriteCompany && <span title="חברת יעד">★ </span>}
+            {job.favoriteCompany && <span title="חברת מטרה">★ </span>}
             {job.company}
             {job.domain && job.domain !== "Other" && (
-              <span className="pill" title={isPreferredDomain(job.domain) ? "תחום יעד" : undefined}>
+              <span className="pill" title={isPreferredDomain(job.domain) ? "תחום מטרה" : undefined}>
                 {" "}
                 {isPreferredDomain(job.domain) ? "★ " : ""}
                 {domainLabel(job.domain)}
@@ -304,7 +308,7 @@ function JobCard({
             ))}
           </select>
         </label>
-        {job.triage === "Fit" && <span className="pill ok">מועדפת</span>}
+        {job.triage === "Fit" && <span className="pill ok">נראית מתאימה</span>}
         {job.triage === "Not fit" && <span className="pill">סוננה כלא מתאימה</span>}
         {job.recommendedCv && job.cvSuggestions && <span className="pill">קו״ח בסיס: {job.recommendedCv}</span>}
         {!job.cvSuggestions && (

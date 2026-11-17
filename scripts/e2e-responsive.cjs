@@ -164,7 +164,8 @@ async function runViewport(browser, base, vp) {
   check(!html.includes(GOOD), "full token never appears in the page DOM");
   check((await page.locator("summary", { hasText: "מחובר" }).innerText()).includes("pat••••7890"), "only a masked token is displayed");
 
-  // Sorted by match %, favorites marked
+  // Sorted by match %, favorites marked (the score sort is offered because these jobs have scores)
+  await page.locator('select[aria-label="מיון"]').selectOption("fit");
   const titles = await page.locator(".card h3").allInnerTexts();
   check(titles[0] === "Senior Product Manager" && titles[1] === "מנהל/ת מוצר בכיר/ה", "cards sorted by match % (91, 74, 62)");
 

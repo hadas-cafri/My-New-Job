@@ -1,8 +1,8 @@
 import { isPreferredDomain } from "./domains";
 import { ACTIVE_STATUSES, type Job, type Status } from "./types";
 
-/** "fit": by match score. "priority": favorite companies and preferred domains first, then by match score. */
-export type SortMode = "fit" | "priority";
+/** "newest": newest posting first (the default while there are no match scores). "fit": by match score. "priority": favorite companies and preferred domains first, then by match score. */
+export type SortMode = "newest" | "fit" | "priority";
 
 export type Filters = {
   query: string;
@@ -28,7 +28,7 @@ export const DEFAULT_FILTERS: Filters = {
   view: "all",
   showHidden: false, // jobs screened as "not fit" are not shown at all unless asked for
   maxAgeDays: 14,
-  sort: "fit",
+  sort: "newest", // there are no match scores yet; "fit" (by score) is offered once jobs have scores
 };
 
 const DAY_MS = 86_400_000;
@@ -70,14 +70,15 @@ export const isPriority = (j: Job): boolean => j.favoriteCompany || isPreferredD
 const triageRank = (j: Job) => (j.triage === "Fit" ? 0 : j.triage === "Not fit" ? 2 : 1);
 
 /**
- * Screened-as-fit jobs always come first. Then "fit" (default): highest match first; on equal scores
- * priority jobs come first; unscored last. "priority": priority jobs first, then highest match.
- * Newest posting breaks remaining ties.
+ * Jobs that look like a fit (by title) always come first. Then "newest": newest posting first.
+ * "fit": highest match score first; on equal scores target companies first; unscored last.
+ * "priority": target companies and domains first, then highest score. Newest breaks remaining ties.
  */
 export function sortJobs(jobs: Job[], mode: SortMode = "fit"): Job[] {
   return [...jobs].sort((a, b) => {
     const byTriage = triageRank(a) - triageRank(b);
     if (byTriage) return byTriage;
+    if (mode === "newest") return (b.postedDate ?? "").localeCompare(a.postedDate ?? "");
     const byPriority = Number(isPriority(b)) - Number(isPriority(a));
     const byMatch = (b.match ?? -1) - (a.match ?? -1);
     const first = mode === "priority" ? byPriority || byMatch : byMatch || byPriority;

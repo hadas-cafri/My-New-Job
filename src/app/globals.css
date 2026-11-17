@@ -63,6 +63,8 @@ a { color: var(--accent); }
 
 .filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; align-items: center; }
 .filters input[type="search"] { flex: 1 1 220px; min-width: 0; }
+/* a long option text must not make the select wider than the screen */
+.filters select { min-width: 0; max-width: 100%; text-overflow: ellipsis; }
 .inline { display: flex; align-items: center; gap: 6px; font-size: .9rem; min-height: var(--tap); }
 .inline input[type="checkbox"] { width: 20px; height: 20px; min-height: 0; padding: 0; }
 
